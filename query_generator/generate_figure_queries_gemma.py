@@ -155,10 +155,12 @@ def attach_image_paths(df, figures_dir):
 
 
 def primary_category(categories_str):
-   categories_str = (categories_str or "").strip()
-   if not categories_str:
-       return "unknown"
-   return categories_str.split()[0]
+    if pd.isna(categories_str):
+        return "unknown"
+    categories_str = (categories_str).strip()
+    if not categories_str:
+        return "unknown"
+    return categories_str.split()[0]
 
 
 
@@ -298,11 +300,19 @@ class GemmaChat:
        import torch
 
 
-       prompt = self.tokenizer.apply_chat_template(
-           messages, tokenize=False, add_generation_prompt=True
-       )
-       inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+       # Build prompt manually since this model has no chat template
+       parts = []
+       for m in messages:
+           if m["role"] == "system":
+               parts.append(m["content"])
+           elif m["role"] == "user":
+               parts.append("User: " + m["content"])
+           elif m["role"] == "assistant":
+               parts.append("Assistant: " + m["content"])
+       parts.append("Assistant:")
+       prompt = "\n\n".join(parts)
 
+       inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
 
        with torch.no_grad():
            out = self.model.generate(
@@ -313,9 +323,9 @@ class GemmaChat:
                top_p=0.9,
                pad_token_id=self.tokenizer.eos_token_id,
            )
-       gen_tokens = out[0][inputs["input_ids"].shape[1]:]
-       text = self.tokenizer.decode(gen_tokens, skip_special_tokens=True)
-       return text.strip()
+      gen_tokens = out[0][inputs["input_ids"].shape[1]:]
+      text = self.tokenizer.decode(gen_tokens, skip_special_tokens=True)
+      return text.strip()
 
 
 
