@@ -323,9 +323,9 @@ class GemmaChat:
                top_p=0.9,
                pad_token_id=self.tokenizer.eos_token_id,
            )
-      gen_tokens = out[0][inputs["input_ids"].shape[1]:]
-      text = self.tokenizer.decode(gen_tokens, skip_special_tokens=True)
-      return text.strip()
+        gen_tokens = out[0][inputs["input_ids"].shape[1]:]
+        text = self.tokenizer.decode(gen_tokens, skip_special_tokens=True)
+        return text.strip()
 
 
 
