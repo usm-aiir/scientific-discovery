@@ -10,6 +10,10 @@ Tools for collecting scientific content from ar5ive, the web-rendered version of
 ### `query_generator/`
 Utilities for generating scientific queries from collected documents. These queries can be used for information retrieval, question answering, benchmark creation, and evaluation of scientific discovery systems.
 
+### `bin/`
+Shell scripts for installing dependencies and running the scraper pipeline.
+
+
 ## Getting Started
 
 Clone the repository:
