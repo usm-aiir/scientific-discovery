@@ -1,30 +1,37 @@
-import pandas as pd 
-import random
-import os
-
-random.seed(42)
-
 import pandas as pd
 import random
+import os
+import argparse
 
 random.seed(42)
+
+# -------------------------------------------------
+# Parse command-line arguments
+# -------------------------------------------------
+
+parser = argparse.ArgumentParser(description="Sample 200 figures across arXiv categories.")
+parser.add_argument("year", help="Two-digit year (e.g. 24 for 2024)")
+parser.add_argument("month", help="Two-digit month (e.g. 10 for October)")
+parser.add_argument("--data_dir", default="arxiv_data", help="Root directory of scraper output (default: arxiv_data)")
+parser.add_argument("--output_tsv", default="200_sampled_figures.tsv", help="Output file path (default: 200_sampled_figures.tsv)")
+args = parser.parse_args()
 
 # -------------------------------------------------
 # Read TSV files
 # -------------------------------------------------
 
 captions = pd.read_csv(
-    "arxiv_data/captions/24_10.tsv",
+    f"{args.data_dir}/captions/{args.year}_{args.month}.tsv",
     sep="\t"
 )
 
 references = pd.read_csv(
-    "arxiv_data/references/ref_24_10.tsv",
+    f"{args.data_dir}/references/ref_{args.year}_{args.month}.tsv",
     sep="\t"
 )
 
 metadata = pd.read_csv(
-    "arxiv_data/metadata_24_10.tsv",
+    f"{args.data_dir}/metadata_{args.year}_{args.month}.tsv",
     sep="\t"
 )
 
@@ -332,13 +339,9 @@ sample_df["Query 3"] = ""
 # -------------------------------------------------
 
 sample_df.to_csv(
-
-    "200_sampled_figures.tsv",
-
+    args.output_tsv,
     sep="\t",
-
     index=False
-
 )
 
 print()
