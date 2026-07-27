@@ -4,7 +4,7 @@
 # run_scrape     - Bash script
 # Scientific Discovery
 #
-# Author: (AI-IR Lab, University of Southern Maine)
+# Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 ################################################################
 
 usage() {

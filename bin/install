@@ -2,6 +2,7 @@
 ################################################################
 # install     - Bash script 
 # Scientific Discovery
+# Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 #
 # Sets up the Conda environment and installs required libraries.
 ################################################################
