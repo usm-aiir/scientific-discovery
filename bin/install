@@ -53,6 +53,10 @@ CENV=`conda info --envs`
 if grep -w "scientific-discovery" <<< "$CENV"
 then
     mymsg "Conda scientific-discovery environment already created."
+    CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/conda.sh
+    source $CONDSH
+    conda run -n scientific-discovery pip install -r requirements.txt
+    testSuccess $# "Required libraries installed successfully."
 else
     conda create -n scientific-discovery python=3.10 -y
     testSuccess $# "Conda environment created successfully."
