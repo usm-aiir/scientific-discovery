@@ -719,42 +719,23 @@ def scrape_range(
 # Quick manual test against a local HTML file
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+# Run this script directly from the command line to scrape tables for a given month:
+#   python3 ar5ive_scraper/table_scraper.py <year> <month>
+# Example:
+#   python3 ar5ive_scraper/table_scraper.py 24 10
+
 if __name__ == "__main__":
-    import sys
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Scrape arXiv tables for a given month.")
+    parser.add_argument("year", help="Two-digit year (e.g. 24 for 2024)")
+    parser.add_argument("month", help="Two-digit month (e.g. 10 for October)")
+    args = parser.parse_args()
 
     OUTPUT_ROOT = Path("/home/adah.holt/Desktop/arxiv_data")
-
-    if len(sys.argv) > 1:
-        # ------------------------------------------------------------
-        # Manual mode: point at a local HTML file on disk, e.g.
-        #     python table_scraper.py sample.html
-        # ------------------------------------------------------------
-        html_path = sys.argv[1]
-        with open(html_path, encoding="utf-8") as fh:
-            soup = BeautifulSoup(fh.read(), "html.parser")
-
-        recs = build_table_records(soup, paper_id="2410.00004")
-        print(f"Found {len(recs)} table records\n")
-        for r in recs:
-            print(r["table_id"], r["n_rows"], "x", r["n_cols"],
-                  "| footnotes:", len(r["footnotes"]), "| refs:", len(r["references"]))
-    else:
-        # ------------------------------------------------------------
-        # Live mode: fetch straight from ar5iv, same as
-        # full_ar5ive_scraper.py's scrape_month() sample usage.
-        # ------------------------------------------------------------
-
-        # SAMPLE 1 — single paper
-        # process_paper("00003", "24", "10", OUTPUT_ROOT)   # -> 2410.00003
-
-        # SAMPLE 2 — a whole month
-        scrape_month("24", "10", OUTPUT_ROOT, start_id=1)
-        scrape_month("24", "11", OUTPUT_ROOT)
-        scrape_month("24", "12", OUTPUT_ROOT)
-        # SAMPLE 3 — multiple years/months (capped for safety during dev)
-        # scrape_range(
-        #     years=["24", "25"],
-        #     months=["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"],
-        #     output_dir=OUTPUT_ROOT,
-        #     max_papers_per_month=None,
-        # )
+    scrape_month(args.year, args.month, OUTPUT_ROOT)
+    
