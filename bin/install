@@ -1,0 +1,79 @@
+#!/bin/bash
+################################################################
+# install     - Bash script 
+# Scientific Discovery
+#
+# Sets up the Conda environment and installs required libraries.
+################################################################
+
+# Report message
+mymsg () {
+    echo "    >> $@"
+    echo ""
+}
+
+# Check success and optionally exit on failure
+testSuccess () {
+    if [ $? -ne 0 ]
+    then
+        echo ""
+        echo "** Installation error ** -- please review error messages above."
+        if [ $1 -eq 0 ]
+        then
+            exit $?
+        else
+            echo "** Continuing..."
+            echo ""
+        fi
+    else
+        mymsg $2
+    fi
+}
+
+################################################################
+# Main Script
+################################################################
+
+echo "Scientific Discovery Installation Script"
+echo "-------------------------------------"
+if [ $# -gt 0 ]
+then
+    echo "** Force mode: will continue after errors ** (argument passed)"
+fi
+
+##################################
+# Set up Conda environment
+##################################
+
+echo ""
+echo "[ Creating Conda Python Environment (scientific-discovery) ]"
+
+CENV=`conda info --envs`
+if grep -w "scientific-discovery" <<< "$CENV"
+then
+    mymsg "Conda scientific-discovery environment already created."
+else
+    conda create -n scientific-discovery python=3.10 -y
+    testSuccess $# "Conda environment created successfully."
+
+    CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/conda.sh
+    source $CONDSH
+    conda activate scientific-discovery
+
+    pip install -r requirements.txt
+    testSuccess $# "Required libraries installed successfully."
+
+    conda deactivate
+fi
+
+##################################
+# Finish
+##################################
+
+echo "Installation complete!"
+echo ""
+echo "To scrape arXiv data, run:"
+echo ""
+echo "    bin/run_scrape <year> <month>"
+echo ""
+echo "Example: bin/run_scrape 24 10"
