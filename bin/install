@@ -4,7 +4,8 @@
 # Scientific Discovery
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 #
-# Sets up the Conda environment and installs required libraries.
+# Sets up Miniconda (if needed), the Conda environment, and
+# installs all required libraries.
 ################################################################
 
 mymsg () {
@@ -38,6 +39,48 @@ echo "-------------------------------------"
 if [ $# -gt 0 ]
 then
     echo "** Force mode: will continue after errors ** (argument passed)"
+fi
+
+##################################
+# Install Miniconda if needed
+##################################
+
+echo ""
+echo "[ Checking for Conda ]"
+
+if ! command -v conda &> /dev/null
+then
+    echo "Conda not found. Installing Miniconda..."
+
+    OS="$(uname -s)"
+    ARCH="$(uname -m)"
+
+    if [ "$OS" == "Linux" ]; then
+        MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
+    elif [ "$OS" == "Darwin" ]; then
+        if [ "$ARCH" == "arm64" ]; then
+            MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh"
+        else
+            MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh"
+        fi
+    else
+        echo "Unsupported OS: $OS"
+        exit 1
+    fi
+
+    wget -q "$MINICONDA_URL" -O /tmp/miniconda.sh
+    testSuccess $# "Miniconda downloaded successfully."
+
+    bash /tmp/miniconda.sh -b -p "$HOME/miniconda3"
+    testSuccess $# "Miniconda installed successfully."
+
+    rm /tmp/miniconda.sh
+
+    # Initialize conda for this shell session
+    eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
+    testSuccess $# "Conda initialized successfully."
+else
+    mymsg "Conda already installed."
 fi
 
 ##################################
