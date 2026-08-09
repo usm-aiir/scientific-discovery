@@ -7,13 +7,11 @@
 # Sets up the Conda environment and installs required libraries.
 ################################################################
 
-# Report message
 mymsg () {
     echo "    >> $@"
     echo ""
 }
 
-# Check success and optionally exit on failure
 testSuccess () {
     if [ $? -ne 0 ]
     then
@@ -47,28 +45,19 @@ fi
 ##################################
 
 echo ""
-echo "[ Creating Conda Python Environment (scientific-discovery) ]"
+echo "[ Creating Conda Python Environment (aiir) ]"
 
 CENV=`conda info --envs`
-if grep -w "scientific-discovery" <<< "$CENV"
+if grep -w "aiir" <<< "$CENV"
 then
-    mymsg "Conda scientific-discovery environment already created."
-    CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/conda.sh
-    source $CONDSH
-    conda run -n scientific-discovery pip install -r requirements.txt
+    mymsg "Conda aiir environment already created."
+    conda run -n aiir pip install -r requirements.txt
     testSuccess $# "Required libraries installed successfully."
 else
-    conda create -n scientific-discovery python=3.10 -y
+    conda create -n aiir python=3.10 -y
     testSuccess $# "Conda environment created successfully."
-
-    CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/conda.sh
-    source $CONDSH
-    conda activate scientific-discovery
-
-    pip install -r requirements.txt
+    conda run -n aiir pip install -r requirements.txt
     testSuccess $# "Required libraries installed successfully."
-
-    conda deactivate
 fi
 
 ##################################
