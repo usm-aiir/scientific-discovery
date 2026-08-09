@@ -32,10 +32,10 @@ CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/c
 source $CONDSH
 echo "[ Running figure sampler for $1/$2 ]"
 CENV=`conda info --envs`
-if grep -w "scientific-discovery" <<< "$CENV"
+if grep -w "aiir" <<< "$CENV"
 then
     source $CONDSH
-    conda run -n scientific-discovery python3 query_generator/figure_dictionary.py "$1" "$2" "${@:3}"
+    conda run -n aiir python3 query_generator/figure_dictionary.py "$1" "$2" "${@:3}"
     echo "Figure sampling complete."
 else
     echo "Conda environment not found -- run bin/install first."

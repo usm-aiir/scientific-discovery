@@ -33,11 +33,11 @@ CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/c
 source $CONDSH
 echo "[ Running arXiv table scraper for $1/$2 ]"
 CENV=`conda info --envs`
-if grep -w "scientific-discovery" <<< "$CENV"
+if grep -w "aiir" <<< "$CENV"
 then
     CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/conda.sh
     source $CONDSH
-    conda run -n scientific-discovery python3 ar5ive_scraper/table_scraper.py "$1" "$2"
+    conda run -n aiir python3 ar5ive_scraper/table_scraper.py "$1" "$2"
     echo "Table scrape complete."
 else
     echo "Conda environment not found -- run bin/install first."
