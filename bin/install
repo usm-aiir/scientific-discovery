@@ -79,6 +79,11 @@ then
     # Initialize conda for this shell session
     eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
     testSuccess $# "Conda initialized successfully."
+
+    # Accept Anaconda Terms of Service
+    $HOME/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+    $HOME/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+    mymsg "Anaconda Terms of Service accepted."
 else
     mymsg "Conda already installed."
 fi
