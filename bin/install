@@ -68,7 +68,7 @@ then
         exit 1
     fi
 
-    wget -q "$MINICONDA_URL" -O /tmp/miniconda.sh
+    curl -s "$MINICONDA_URL" -o /tmp/miniconda.sh
     testSuccess $# "Miniconda downloaded successfully."
 
     bash /tmp/miniconda.sh -b -p "$HOME/miniconda3"
