@@ -29,6 +29,16 @@ then
     exit 1
 fi
 
+# Initialize conda if installed via Miniconda
+if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+    source "$HOME/miniconda3/etc/profile.d/conda.sh"
+fi
+
+# Initialize conda if installed via Miniconda
+if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+    source "$HOME/miniconda3/etc/profile.d/conda.sh"
+fi
+
 CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/conda.sh
 source $CONDSH
 echo "[ Running figure query generation (Gemma 2B) ]"
