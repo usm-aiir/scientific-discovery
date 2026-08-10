@@ -43,7 +43,7 @@ CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/c
 source $CONDSH
 echo "[ Running arXiv table scraper for $1/$2 ]"
 CENV=`conda info --envs`
-if grep -w "aiir" <<< "$CENV"
+if grep -w "scidiscovery" <<< "$CENV"
 then
     # Initialize conda if installed via Miniconda
 if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
@@ -57,7 +57,7 @@ fi
 
 CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/conda.sh
     source $CONDSH
-    conda run -n aiir python3 ar5ive_scraper/table_scraper.py "$1" "$2"
+    conda run -n scidiscovery python3 ar5ive_scraper/table_scraper.py "$1" "$2"
     echo "Table scrape complete."
 else
     echo "Conda environment not found -- run bin/install first."
