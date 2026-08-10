@@ -1,0 +1,6 @@
+arxiv_data/
+__pycache__/
+*.pyc
+queries_output.tsv
+200_sampled_figures.tsv
+sampled_tables.tsv

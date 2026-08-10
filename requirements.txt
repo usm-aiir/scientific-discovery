@@ -1,0 +1,7 @@
+accelerate==1.14.0
+beautifulsoup4==4.15.0
+pandas==2.3.3
+requests==2.34.2
+soupsieve==2.9.1
+torch==2.13.0
+transformers==5.14.1

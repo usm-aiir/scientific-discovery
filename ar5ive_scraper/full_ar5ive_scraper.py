@@ -559,8 +559,21 @@ def split_subcaptions(caption: str) -> List[Tuple[str, str]]:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-
+# Run this script directly from the command line to scrape a given month:
+#   python3 ar5ive_scraper/full_ar5ive_scraper.py <year> <month>
+# Example:
+#   python3 ar5ive_scraper/full_ar5ive_scraper.py 24 10
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Scrape arXiv papers for a given month.")
+    parser.add_argument("year", help="Two-digit year (e.g. 24 for 2024)")
+    parser.add_argument("month", help="Two-digit month (e.g. 10 for October)")
+    args = parser.parse_args()
+
+    OUTPUT_ROOT = Path("arxiv_data")
+    scrape_month(args.year, args.month, OUTPUT_ROOT)
+    
     # ------------------------------------------------------------------
     # Quick single-paper test
     # ------------------------------------------------------------------
@@ -577,7 +590,7 @@ if __name__ == "__main__":
     # ------------------------------------------------------------------
     # Uncomment to run a full month scrape (e.g. October 2024)
     # ------------------------------------------------------------------
-    scrape_month("24", "10", OUTPUT_ROOT)
+    # scrape_month("24", "10", OUTPUT_ROOT)
 
 
     # SAMPLE 3
