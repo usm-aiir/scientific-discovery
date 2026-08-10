@@ -1,0 +1,121 @@
+#!/bin/bash
+################################################################
+# install     - Bash script 
+# Scientific Discovery
+# Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
+#
+# Sets up Miniconda (if needed), the Conda environment, and
+# installs all required libraries.
+################################################################
+
+mymsg () {
+    echo "    >> $@"
+    echo ""
+}
+
+testSuccess () {
+    if [ $? -ne 0 ]
+    then
+        echo ""
+        echo "** Installation error ** -- please review error messages above."
+        if [ $1 -eq 0 ]
+        then
+            exit $?
+        else
+            echo "** Continuing..."
+            echo ""
+        fi
+    else
+        mymsg $2
+    fi
+}
+
+################################################################
+# Main Script
+################################################################
+
+echo "Scientific Discovery Installation Script"
+echo "-------------------------------------"
+if [ $# -gt 0 ]
+then
+    echo "** Force mode: will continue after errors ** (argument passed)"
+fi
+
+##################################
+# Install Miniconda if needed
+##################################
+
+echo ""
+echo "[ Checking for Conda ]"
+
+if ! command -v conda &> /dev/null
+then
+    echo "Conda not found. Installing Miniconda..."
+
+    OS="$(uname -s)"
+    ARCH="$(uname -m)"
+
+    if [ "$OS" == "Linux" ]; then
+        MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
+    elif [ "$OS" == "Darwin" ]; then
+        if [ "$ARCH" == "arm64" ]; then
+            MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-arm64.sh"
+        else
+            MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh"
+        fi
+    else
+        echo "Unsupported OS: $OS"
+        exit 1
+    fi
+
+    curl -s "$MINICONDA_URL" -o /tmp/miniconda.sh
+    testSuccess $# "Miniconda downloaded successfully."
+
+    bash /tmp/miniconda.sh -b -p "$HOME/miniconda3"
+    testSuccess $# "Miniconda installed successfully."
+
+    rm /tmp/miniconda.sh
+
+    # Initialize conda for this shell session
+    eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
+    testSuccess $# "Conda initialized successfully."
+
+    # Accept Anaconda Terms of Service
+    $HOME/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+    $HOME/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+    mymsg "Anaconda Terms of Service accepted."
+else
+    mymsg "Conda already installed."
+fi
+
+##################################
+# Set up Conda environment
+##################################
+
+echo ""
+echo "[ Creating Conda Python Environment (aiir) ]"
+
+CENV=`conda info --envs`
+if grep -w "aiir" <<< "$CENV"
+then
+    mymsg "Conda aiir environment already created."
+    conda run -n aiir pip install -r requirements.txt
+    testSuccess $# "Required libraries installed successfully."
+else
+    conda create -n aiir python=3.10 -y
+    testSuccess $# "Conda environment created successfully."
+    conda run -n aiir pip install -r requirements.txt
+    testSuccess $# "Required libraries installed successfully."
+fi
+
+##################################
+# Finish
+##################################
+
+echo "Installation complete!"
+echo ""
+echo "To scrape arXiv data, run:"
+echo ""
+echo "    bin/run_scrape <year> <month>"
+echo ""
+echo "Example: bin/run_scrape 24 10"
