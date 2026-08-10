@@ -95,16 +95,21 @@ fi
 echo ""
 echo "[ Creating Conda Python Environment (scidiscovery) ]"
 
+# Source conda so 'conda activate' works inside this script
+source "$(conda info --base)/etc/profile.d/conda.sh"
+
 CENV=`conda info --envs`
 if grep -w "scidiscovery" <<< "$CENV"
 then
     mymsg "Conda scidiscovery environment already created."
-    conda run -n scidiscovery pip install -r requirements.txt
+    conda activate scidiscovery
+    pip install -r requirements.txt
     testSuccess $# "Required libraries installed successfully."
 else
     conda create -n scidiscovery python=3.10 -y
     testSuccess $# "Conda environment created successfully."
-    conda run -n scidiscovery pip install -r requirements.txt
+    conda activate scidiscovery
+    pip install -r requirements.txt
     testSuccess $# "Required libraries installed successfully."
 fi
 
