@@ -1,5 +1,4 @@
 #!/bin/bash
-
 ################################################################
 # run_sample     - Bash script
 # Scientific Discovery
@@ -9,39 +8,22 @@
 
 usage() {
     echo "Builds a stratified random sample of 200 tables from scraper output."
-    echo "usage: $0 [-output_dir] [-output_tsv]"
-    echo "  -output_dir   Root directory of scraper output (default: arxiv_data)"
-    echo "  -output_tsv   Path for output file (default: sampled_tables.tsv)"
+    echo "usage: $0 [output_dir] [output_tsv]"
+    echo "  output_dir   Root directory of scraper output (default: arxiv_data)"
+    echo "  output_tsv   Path for output file (default: sampled_tables.tsv)"
 }
 
-if [[ $1 == "--help" || $1 == "-h" ]];
-then
+if [[ $1 == "--help" || $1 == "-h" ]]; then
     usage
-    exit 1
+    exit 0
 fi
 
-# Initialize conda if installed via Miniconda
-if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
-    source "$HOME/miniconda3/etc/profile.d/conda.sh"
-fi
+# Initialize conda
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate scidiscovery
 
-# Initialize conda if installed via Miniconda
-if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
-    source "$HOME/miniconda3/etc/profile.d/conda.sh"
-fi
-
-CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/conda.sh
-source $CONDSH
 echo "[ Running table sampler ]"
-CENV=`conda info --envs`
-if grep -w "scidiscovery" <<< "$CENV"
-then
-    source $CONDSH
-    conda activate scidiscovery 
-    python3 query_generator/table_sampler.py \
-        "${1:-arxiv_data}" \
-        "${2:-sampled_tables.tsv}"
-    echo "Sampling complete."
-else
-    echo "Conda environment not found -- run bin/install first."
-fi
+python3 query_generator/table_sampler.py \
+    "${1:-arxiv_data}" \
+    "${2:-sampled_tables.tsv}"
+echo "Sampling complete."
