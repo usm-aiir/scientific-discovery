@@ -93,18 +93,18 @@ fi
 ##################################
 
 echo ""
-echo "[ Creating Conda Python Environment (aiir) ]"
+echo "[ Creating Conda Python Environment (scidiscovery) ]"
 
 CENV=`conda info --envs`
-if grep -w "aiir" <<< "$CENV"
+if grep -w "scidiscovery" <<< "$CENV"
 then
-    mymsg "Conda aiir environment already created."
-    conda run -n aiir pip install -r requirements.txt
+    mymsg "Conda scidiscovery environment already created."
+    conda run -n scidiscovery pip install -r requirements.txt
     testSuccess $# "Required libraries installed successfully."
 else
-    conda create -n aiir python=3.10 -y
+    conda create -n scidiscovery python=3.10 -y
     testSuccess $# "Conda environment created successfully."
-    conda run -n aiir pip install -r requirements.txt
+    conda run -n scidiscovery pip install -r requirements.txt
     testSuccess $# "Required libraries installed successfully."
 fi
 

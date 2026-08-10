@@ -43,10 +43,10 @@ CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/c
 source $CONDSH
 echo "[ Running figure query generation (Gemma 2B) ]"
 CENV=`conda info --envs`
-if grep -w "aiir" <<< "$CENV"
+if grep -w "scidiscovery" <<< "$CENV"
 then
     source $CONDSH
-    conda run -n aiir python3 query_generator/generate_figure_queries_gemma.py \
+    conda run -n scidiscovery python3 query_generator/generate_figure_queries_gemma.py \
         --captions_tsv "$1" \
         --metadata_tsv "$2" \
         --ref_tsv "$3" \

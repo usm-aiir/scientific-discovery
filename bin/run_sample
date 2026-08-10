@@ -34,10 +34,10 @@ CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/c
 source $CONDSH
 echo "[ Running table sampler ]"
 CENV=`conda info --envs`
-if grep -w "aiir" <<< "$CENV"
+if grep -w "scidiscovery" <<< "$CENV"
 then
     source $CONDSH
-    conda activate aiir 
+    conda activate scidiscovery 
     python3 query_generator/table_sampler.py \
         "${1:-arxiv_data}" \
         "${2:-sampled_tables.tsv}"
