@@ -736,6 +736,6 @@ if __name__ == "__main__":
     parser.add_argument("month", help="Two-digit month (e.g. 10 for October)")
     args = parser.parse_args()
 
-    OUTPUT_ROOT = Path("/home/adah.holt/Desktop/arxiv_data")
+    OUTPUT_ROOT = Path("arxiv_data")
     scrape_month(args.year, args.month, OUTPUT_ROOT)
     
