@@ -103,13 +103,13 @@ if grep -w "scidiscovery" <<< "$CENV"
 then
     mymsg "Conda scidiscovery environment already created."
     conda activate scidiscovery
-    $(conda info --base)/envs/scidiscovery/bin/pip install -r requirements.txt
+    $(conda info --envs | grep "^scidiscovery" | awk '{print $NF}')/bin/pip install -r requirements.txt
     testSuccess $# "Required libraries installed successfully."
 else
     conda create -n scidiscovery python=3.10 -y
     testSuccess $# "Conda environment created successfully."
     conda activate scidiscovery
-    $(conda info --base)/envs/scidiscovery/bin/pip install -r requirements.txt
+    $(conda info --envs | grep "^scidiscovery" | awk '{print $NF}')/bin/pip install -r requirements.txt
     testSuccess $# "Required libraries installed successfully."
 fi
 
