@@ -1,4 +1,4 @@
-accelerate==1.14.0
+accelerate==1.0.1
 beautifulsoup4==4.15.0
 pandas==2.3.3
 requests==2.34.2
