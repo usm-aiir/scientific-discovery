@@ -93,6 +93,9 @@ fi
 ##################################
 
 echo ""
+#Ensure conda uses user-writable package cache
+mkdir -p ~/.conda/pkgs
+conda config --add pkgs_dirs ~/.conda/pkgs
 echo "[ Creating Conda Python Environment (scidiscovery) ]"
 
 # Source conda so 'conda activate' works inside this script
