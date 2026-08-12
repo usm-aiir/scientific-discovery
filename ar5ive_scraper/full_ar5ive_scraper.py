@@ -164,6 +164,23 @@ def extract_text_with_math(element) -> str:
         return f'${alt}$' if alt else element.get_text()
     return ''.join(extract_text_with_math(child) for child in element.children)
 
+def is_equation_figure(fig_tag) -> bool:
+    """
+    Return True if this ltx_figure element is actually a math equation,
+    not a real figure. Equations sneak in because arXiv HTML uses
+    ltx_figure for both.
+    """
+    # Equations contain equation-specific class names
+    if fig_tag.find(class_=re.compile(r'ltx_eqn|ltx_equation|ltx_Math')):
+        return True
+    # Real figures always have at least one <img> tag somewhere inside
+    if not fig_tag.find("img"):
+        return True
+    # Caption says "Equation" rather than "Figure"
+    caption = _outer_caption(fig_tag)
+    if re.match(r'^\s*equation\b', caption, re.IGNORECASE):
+        return True
+    return False
 
 def parse_figures(soup: BeautifulSoup, paper_url: str) -> list[dict]:
     rows: list[dict] = []
@@ -175,6 +192,8 @@ def parse_figures(soup: BeautifulSoup, paper_url: str) -> list[dict]:
     ]
 
     for fig in top_level_figures:
+        if is_equation_figure(fig):
+            continue 
         sequential_idx += 1
         outer_caption = _outer_caption(fig)
 
