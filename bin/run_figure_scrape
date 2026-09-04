@@ -1,18 +1,13 @@
-#!/bin/bash
+!/bin/bash
 ################################################################
-# run_scrape     - Bash script
+# run_figure_scrape     - Bash script
 # Scientific Discovery
 #
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 ################################################################
  
-mymsg () {
-    echo "    >> $@"
-    echo ""
-}
- 
 usage() {
-    echo "This script scrapes arXiv HTML pages for a given year and month,"
+    echo "Scrapes arXiv HTML pages for a given year and month,"
     echo "extracting paper metadata, figures, captions, and in-text references."
     echo ""
     echo "usage: $0 <year> <month> [--max-papers N] [--start-id N]"
@@ -28,13 +23,11 @@ usage() {
     echo "  $0 24 10 --start-id 200         # resume from paper 00200"
 }
  
-# Check whether user supplied -h or --help
 if [[ $1 == "--help" || $1 == "-h" ]]; then
     usage
     exit 0
 fi
  
-# Require at least year and month
 if [ $# -lt 2 ]; then
     usage
     exit 1
@@ -44,13 +37,13 @@ YEAR=$1
 MONTH=$2
 shift 2
  
-# Pass any remaining flags (--max-papers, --start-id) straight through to Python
 EXTRA_ARGS="$@"
  
 # Initialize conda
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate scidiscovery
  
-echo "[ Running arXiv scraper for $YEAR/$MONTH ]"
-python3 ar5ive_scraper/full_ar5ive_scraper.py "$YEAR" "$MONTH" $EXTRA_ARGS
+echo "[ Running arXiv figure scraper for $YEAR/$MONTH ]"
+python3 scrapers/figure_scraper.py "$YEAR" "$MONTH" $EXTRA_ARGS
 echo "Scrape complete."
+ 
