@@ -58,8 +58,10 @@ fi
  
 echo ""
 echo "[ Checking for Conda ]"
- 
-if ! command -v conda &> /dev/null
+
+
+if ! command -v conda &> /dev/null && [ ! -d "$HOME/miniconda3" ]
+
 then
     echo "Conda not found. Installing Miniconda..."
     OS="$(uname -s)"
@@ -87,6 +89,7 @@ then
     $HOME/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
     mymsg "Anaconda Terms of Service accepted."
 else
+    eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
     mymsg "Conda already installed."
 fi
  
