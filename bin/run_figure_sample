@@ -5,30 +5,43 @@
 #
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 ################################################################
-
+ 
 usage() {
     echo "Samples 200 figures across arXiv categories for a given month."
+    echo ""
     echo "usage: $0 <year> <month> [--data_dir DIR] [--output_tsv FILE]"
+    echo ""
     echo "  year          Two-digit year (e.g. 24 for 2024)"
     echo "  month         Two-digit month (e.g. 10 for October)"
     echo "  --data_dir    Root directory of scraper output (default: arxiv_data)"
     echo "  --output_tsv  Output file path (default: 200_sampled_figures.tsv)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 24 10"
+    echo "  $0 24 10 --output_tsv results/sampled_24_10.tsv"
 }
-
+ 
 if [[ $1 == "--help" || $1 == "-h" ]]; then
     usage
     exit 0
 fi
-
+ 
 if [ $# -lt 2 ]; then
     usage
     exit 1
 fi
-
+ 
+YEAR=$1
+MONTH=$2
+shift 2
+ 
+# Pass any remaining flags (--data_dir, --output_tsv) straight through to Python
+EXTRA_ARGS="$@"
+ 
 # Initialize conda
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate scidiscovery
-
-echo "[ Running figure sampler for $1/$2 ]"
-python3 query_generator/figure_dictionary.py "$1" "$2" "${@:3}"
+ 
+echo "[ Running figure sampler for $YEAR/$MONTH ]"
+python3 query_generator/figure_dictionary.py "$YEAR" "$MONTH" $EXTRA_ARGS
 echo "Figure sampling complete."

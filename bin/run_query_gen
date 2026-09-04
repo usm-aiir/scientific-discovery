@@ -1,58 +1,50 @@
-#!/bin/bash
-
+##!/bin/bash
 ################################################################
-# run_query_gen_gemma     - Bash script
+# run_query_gen     - Bash script
 # Scientific Discovery
 #
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 ################################################################
-
+ 
 usage() {
-    echo "Generates figure queries using a local Gemma model (2B)."
-    echo "usage: $0 [-captions_tsv] [-metadata_tsv] [-ref_tsv] [-figures_dir] [-output_tsv]"
-    echo "  -captions_tsv   Path to captions TSV (e.g. arxiv_data/captions/24_10.tsv)"
-    echo "  -metadata_tsv   Path to metadata TSV (e.g. arxiv_data/metadata_24_10.tsv)"
-    echo "  -ref_tsv        Path to references TSV (e.g. arxiv_data/references/ref_24_10.tsv)"
-    echo "  -figures_dir    Path to figures directory (e.g. arxiv_data/figures)"
-    echo "  -output_tsv     Path for output file (default: queries_output.tsv)"
+    echo "Generates figure search queries using a local Gemma model."
+    echo ""
+    echo "usage: $0 <captions_tsv> <metadata_tsv> <ref_tsv> <figures_dir> [output_tsv]"
+    echo ""
+    echo "  captions_tsv   Path to captions TSV    (e.g. arxiv_data/captions/24_10.tsv)"
+    echo "  metadata_tsv   Path to metadata TSV    (e.g. arxiv_data/metadata_24_10.tsv)"
+    echo "  ref_tsv        Path to references TSV  (e.g. arxiv_data/references/ref_24_10.tsv)"
+    echo "  figures_dir    Path to figures root dir (e.g. arxiv_data/figures)"
+    echo "  output_tsv     Output file path         (default: queries_output.tsv)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 arxiv_data/captions/24_10.tsv arxiv_data/metadata_24_10.tsv \\"
+    echo "     arxiv_data/references/ref_24_10.tsv arxiv_data/figures"
+    echo "  $0 arxiv_data/captions/24_10.tsv arxiv_data/metadata_24_10.tsv \\"
+    echo "     arxiv_data/references/ref_24_10.tsv arxiv_data/figures queries_200.tsv"
 }
-
-if [[ $1 == "--help" || $1 == "-h" ]];
-then
+ 
+# Check for help flag
+if [[ $1 == "--help" || $1 == "-h" ]]; then
+    usage
+    exit 0
+fi
+ 
+# Require at least the four positional arguments
+if [ $# -lt 4 ]; then
     usage
     exit 1
 fi
-
-if [ $# -le 3 ]
-then
-    usage
-    exit 1
-fi
-
-# Initialize conda if installed via Miniconda
-if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
-    source "$HOME/miniconda3/etc/profile.d/conda.sh"
-fi
-
-# Initialize conda if installed via Miniconda
-if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
-    source "$HOME/miniconda3/etc/profile.d/conda.sh"
-fi
-
-CONDSH=`conda info | grep 'base environment' | awk '{print $4}'`/etc/profile.d/conda.sh
-source $CONDSH
-echo "[ Running figure query generation (Gemma 2B) ]"
-CENV=`conda info --envs`
-if grep -w "scidiscovery" <<< "$CENV"
-then
-    source $CONDSH
-    conda run -n scidiscovery python3 query_generator/generate_figure_queries_gemma.py \
-        --captions_tsv "$1" \
-        --metadata_tsv "$2" \
-        --ref_tsv "$3" \
-        --figures_dir "$4" \
-        --output_tsv "${5:-queries_output.tsv}"
-    echo "Query generation complete."
-else
-    echo "Conda environment not found -- run bin/install first."
-fi
+ 
+# Initialize conda
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate scidiscovery
+ 
+echo "[ Running figure query generation (Gemma) ]"
+python3 query_generator/generate_figure_queries.py \
+    --captions_tsv "$1" \
+    --metadata_tsv "$2" \
+    --ref_tsv      "$3" \
+    --figures_dir  "$4" \
+    --output_tsv   "${5:-queries_output.tsv}"
+echo "Query generation complete."
