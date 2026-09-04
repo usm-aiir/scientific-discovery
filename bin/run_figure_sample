@@ -1,3 +1,4 @@
+
 #!/bin/bash
 ################################################################
 # run_figure_sample     - Bash script
@@ -14,7 +15,7 @@ usage() {
     echo "  year          Two-digit year (e.g. 24 for 2024)"
     echo "  month         Two-digit month (e.g. 10 for October)"
     echo "  --data_dir    Root directory of scraper output (default: arxiv_data)"
-    echo "  --output_tsv  Output file path (default: 200_sampled_figures.tsv)"
+    echo "  --output_tsv  Output file path (default: sampled_figures.tsv)"
     echo ""
     echo "Examples:"
     echo "  $0 24 10"
@@ -38,10 +39,13 @@ shift 2
 # Pass any remaining flags (--data_dir, --output_tsv) straight through to Python
 EXTRA_ARGS="$@"
  
-# Initialize conda
+# Initialize conda (works whether or not conda is already on PATH)
+if ! command -v conda &> /dev/null; then
+    source "$HOME/miniconda3/etc/profile.d/conda.sh"
+fi
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate scidiscovery
  
 echo "[ Running figure sampler for $YEAR/$MONTH ]"
-python3 query_generator/figure_dictionary.py "$YEAR" "$MONTH" $EXTRA_ARGS
+python3 query_generator/sample_figures.py "$YEAR" "$MONTH" $EXTRA_ARGS
 echo "Figure sampling complete."
