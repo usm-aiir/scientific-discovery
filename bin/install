@@ -1,18 +1,18 @@
 #!/bin/bash
 ################################################################
-# install     - Bash script 
+# install     - Bash script
 # Scientific Discovery
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 #
 # Sets up Miniconda (if needed), the Conda environment, and
 # installs all required libraries.
 ################################################################
-
+ 
 mymsg () {
     echo "    >> $@"
     echo ""
 }
-
+ 
 testSuccess () {
     if [ $? -ne 0 ]
     then
@@ -29,32 +29,41 @@ testSuccess () {
         mymsg $2
     fi
 }
-
+ 
+pip_install () {
+    # Use the correct pip path for Windows (Scripts/) vs Linux/Mac (bin/)
+    ENV_PATH=$(conda info --envs | grep "^scidiscovery" | awk '{print $NF}')
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+        "$ENV_PATH/Scripts/pip" install -r requirements.txt
+    else
+        "$ENV_PATH/bin/pip" install -r requirements.txt
+    fi
+}
+ 
 ################################################################
 # Main Script
 ################################################################
-
+ 
 echo "Scientific Discovery Installation Script"
 echo "-------------------------------------"
+ 
 if [ $# -gt 0 ]
 then
     echo "** Force mode: will continue after errors ** (argument passed)"
 fi
-
+ 
 ##################################
 # Install Miniconda if needed
 ##################################
-
+ 
 echo ""
 echo "[ Checking for Conda ]"
-
+ 
 if ! command -v conda &> /dev/null
 then
     echo "Conda not found. Installing Miniconda..."
-
     OS="$(uname -s)"
     ARCH="$(uname -m)"
-
     if [ "$OS" == "Linux" ]; then
         MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
     elif [ "$OS" == "Darwin" ]; then
@@ -67,62 +76,58 @@ then
         echo "Unsupported OS: $OS"
         exit 1
     fi
-
     curl -s "$MINICONDA_URL" -o /tmp/miniconda.sh
     testSuccess $# "Miniconda downloaded successfully."
-
     bash /tmp/miniconda.sh -b -p "$HOME/miniconda3"
     testSuccess $# "Miniconda installed successfully."
-
     rm /tmp/miniconda.sh
-
     eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
     testSuccess $# "Conda initialized successfully."
-
     $HOME/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
     $HOME/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
     mymsg "Anaconda Terms of Service accepted."
 else
     mymsg "Conda already installed."
 fi
-
+ 
 ##################################
 # Set up Conda environment
 ##################################
-
+ 
 echo ""
 echo "[ Creating Conda Python Environment (scidiscovery) ]"
-
+ 
 # Use user-writable package cache to avoid permission errors on shared systems
 mkdir -p $HOME/.conda/pkgs
 export CONDA_PKGS_DIRS=$HOME/.conda/pkgs
-
+ 
 # Source conda so 'conda activate' works inside this script
 source "$(conda info --base)/etc/profile.d/conda.sh"
-
+ 
 CENV=`conda info --envs`
 if grep -w "scidiscovery" <<< "$CENV"
 then
     mymsg "Conda scidiscovery environment already created."
     conda activate scidiscovery
-    $(conda info --envs | grep "^scidiscovery" | awk '{print $NF}')/bin/pip install -r requirements.txt
+    pip_install
     testSuccess $# "Required libraries installed successfully."
 else
     conda create -n scidiscovery python=3.10 -y
     testSuccess $# "Conda environment created successfully."
     conda activate scidiscovery
-    $(conda info --envs | grep "^scidiscovery" | awk '{print $NF}')/bin/pip install -r requirements.txt
+    pip_install
     testSuccess $# "Required libraries installed successfully."
 fi
-
+ 
 ##################################
 # Finish
 ##################################
-
+ 
 echo "Installation complete!"
 echo ""
-echo "To scrape arXiv data, run:"
+echo "To scrape arXiv figures and metadata, run:"
 echo ""
-echo "    bin/run_scrape <year> <month>"
+echo "    bin/run_figure_scrape <year> <month>"
 echo ""
-echo "Example: bin/run_scrape 24 10"
+echo "Example: bin/run_figure_scrape 24 10"
+ 
