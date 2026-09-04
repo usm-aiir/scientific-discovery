@@ -1,4 +1,4 @@
-##!/bin/bash
+#!/bin/bash
 ################################################################
 # run_query_gen     - Bash script
 # Scientific Discovery
@@ -24,19 +24,20 @@ usage() {
     echo "     arxiv_data/references/ref_24_10.tsv arxiv_data/figures queries_200.tsv"
 }
  
-# Check for help flag
 if [[ $1 == "--help" || $1 == "-h" ]]; then
     usage
     exit 0
 fi
  
-# Require at least the four positional arguments
 if [ $# -lt 4 ]; then
     usage
     exit 1
 fi
  
-# Initialize conda
+# Initialize conda (works whether or not conda is already on PATH)
+if ! command -v conda &> /dev/null; then
+    source "$HOME/miniconda3/etc/profile.d/conda.sh"
+fi
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate scidiscovery
  
@@ -48,3 +49,4 @@ python3 query_generator/generate_figure_queries.py \
     --figures_dir  "$4" \
     --output_tsv   "${5:-queries_output.tsv}"
 echo "Query generation complete."
+ 
