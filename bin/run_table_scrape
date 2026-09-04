@@ -5,36 +5,52 @@
 #
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 ################################################################
-
+ 
 mymsg () {
     echo "    >> $@"
     echo ""
 }
-
+ 
 usage() {
     echo "This script scrapes arXiv HTML pages for a given year and month,"
     echo "extracting tables, captions, cell grids, footnotes, and in-text references."
-    echo "usage: $0 <year> <month>"
-    echo "  year   Two-digit year (e.g. 24 for 2024)"
-    echo "  month  Two-digit month (e.g. 10 for October)"
+    echo ""
+    echo "usage: $0 <year> <month> [--max-papers N] [--start-id N]"
+    echo ""
+    echo "  year          Two-digit year (e.g. 24 for 2024)"
+    echo "  month         Two-digit month (e.g. 10 for October)"
+    echo "  --max-papers  Stop after N papers (useful for testing)"
+    echo "  --start-id    Resume from this paper sequence number (default 1)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 24 10                        # scrape all of October 2024"
+    echo "  $0 24 10 --max-papers 5         # scrape first 5 papers only"
+    echo "  $0 24 10 --start-id 200         # resume from paper 00200"
 }
-
+ 
 # Check whether user supplied -h or --help
 if [[ $1 == "--help" || $1 == "-h" ]]; then
     usage
     exit 0
 fi
-
-# If less than two arguments supplied, display usage
+ 
+# Require at least year and month
 if [ $# -lt 2 ]; then
     usage
     exit 1
 fi
-
+ 
+YEAR=$1
+MONTH=$2
+shift 2
+ 
+# Pass any remaining flags (--max-papers, --start-id) straight through to Python
+EXTRA_ARGS="$@"
+ 
 # Initialize conda
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate scidiscovery
-
-echo "[ Running arXiv table scraper for $1/$2 ]"
-python3 ar5ive_scraper/table_scraper.py "$1" "$2"
+ 
+echo "[ Running arXiv table scraper for $YEAR/$MONTH ]"
+python3 ar5ive_scraper/table_scraper.py "$YEAR" "$MONTH" $EXTRA_ARGS
 echo "Table scrape complete."
