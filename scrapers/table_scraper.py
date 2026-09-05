@@ -64,6 +64,19 @@ ar5iv quirks handled
   We split on figcaption boundaries so each logical table becomes its own
   record.
  
+Public API
+----------
+The two functions intended for external use are:
+ 
+- ``build_table_records(soup, paper_id)`` — parse all tables from a
+  BeautifulSoup tree and return a list of complete record dicts (including
+  in-text references).
+- ``write_tables_jsonl(records, path)`` — append those records to a JSONL
+  file, one JSON object per line.
+ 
+All other parsing helpers are internal (prefixed with ``_``) and subject
+to change.
+ 
 Usage
 -----
 Standalone::
@@ -248,7 +261,7 @@ def _outer_table_caption(table_fig: Tag) -> Tuple[str, List[dict]]:
     return "", []
  
  
-def split_subcaptions(caption: str) -> List[Tuple[str, str]]:
+def _split_subcaptions(caption: str) -> List[Tuple[str, str]]:
     """
     Split a compound caption into labeled sub-panel entries.
  
@@ -390,13 +403,17 @@ def _find_direct_table(content_tags: List[Tag]) -> Optional[Tag]:
  
  
 # ---------------------------------------------------------------------------
-# Top-level table parsing
+# Internal table parsing
 # ---------------------------------------------------------------------------
  
-def parse_tables(soup: BeautifulSoup, paper_id: str) -> List[dict]:
+def _parse_tables(soup: BeautifulSoup, paper_id: str) -> List[dict]:
     """
     Find every table on the page and return one record per logical table
     (or per sub-panel for multi-part tables like Table 14(a)/(b)).
+ 
+    Note: records returned here do not yet have the ``references`` field.
+    Use ``build_table_records()`` instead, which attaches references and
+    is the intended public entry point.
     """
     records: List[dict] = []
     sequential_idx = 0
@@ -453,7 +470,7 @@ def _append_panel_records(
         panel_footnotes_list.append(sub_fns)
  
     if all(c == "" for c in panel_captions):
-        sub_parts = split_subcaptions(outer_caption)
+        sub_parts = _split_subcaptions(outer_caption)
         while len(sub_parts) < len(panels):
             sub_parts.append(("", ""))
         panel_captions = [text for _, text in sub_parts[: len(panels)]]
@@ -475,7 +492,7 @@ def _append_panel_records(
         if table_tag is None:
             continue
         cells, n_rows, n_cols, cell_footnotes = extract_table_grid(table_tag)
-        sub_id     = panel_sub_ids[idx] if idx < len(panel_sub_ids) else chr(ord("a") + idx)
+        sub_id      = panel_sub_ids[idx] if idx < len(panel_sub_ids) else chr(ord("a") + idx)
         sub_caption = panel_captions[idx] if idx < len(panel_captions) else ""
         fns = list(outer_footnotes)
         fns.extend(panel_footnotes_list[idx] if idx < len(panel_footnotes_list) else [])
@@ -524,10 +541,10 @@ def _append_single_record(
  
  
 # ---------------------------------------------------------------------------
-# In-text references to tables
+# Internal: in-text references to tables
 # ---------------------------------------------------------------------------
  
-def parse_table_references(soup: BeautifulSoup) -> dict:
+def _parse_table_references(soup: BeautifulSoup) -> dict:
     """
     Return ``{table_num: [paragraph_text, ...]}`` for every logical table,
     scanning body paragraphs for mentions like ``"Table 3"``, ``"Tab. 3"``,
@@ -574,15 +591,28 @@ def build_table_records(soup: BeautifulSoup, paper_id: str) -> List[dict]:
     """
     Parse all tables from *soup* and attach in-text references to each record.
  
-    This is the main entry point when importing this module from another
-    script that already has a ``soup`` object (e.g. ``arxiv_scraper.py``'s
-    ``process_paper()``), so you avoid making a second HTTP request.
+    This is the main entry point for external use. It returns complete records
+    matching the output shape described in the module docstring, including the
+    ``references`` field.
  
-    Returns a list of table record dicts ready to be written with
-    ``write_tables_jsonl()``.
+    Use this instead of calling internal helpers directly — they return
+    incomplete records without ``references``.
+ 
+    Parameters
+    ----------
+    soup:
+        Parsed BeautifulSoup tree of an ar5iv paper page.
+    paper_id:
+        Full arXiv ID string, e.g. ``"2410.12325"``.
+ 
+    Returns
+    -------
+    List[dict]
+        List of table record dicts ready to be written with
+        ``write_tables_jsonl()``.
     """
-    records = parse_tables(soup, paper_id)
-    refs_by_num = parse_table_references(soup)
+    records = _parse_tables(soup, paper_id)
+    refs_by_num = _parse_table_references(soup)
     for rec in records:
         rec["references"] = refs_by_num.get(rec["table_num"], [])
     return records
@@ -592,6 +622,10 @@ def write_tables_jsonl(records: List[dict], path: Path) -> None:
     """
     Append *records* to a JSONL file at *path* (one JSON object per line).
     Creates parent directories as needed.
+ 
+    Note: opens in append mode, so re-running on the same month will
+    produce duplicate rows. Delete the output file before re-scraping
+    if you need a clean run.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8") as fh:
@@ -655,8 +689,9 @@ def scrape_month(
     """
     Scrape tables from all papers for a given *year* / *month* in sequence.
  
-    Stops when a paper is not found (end of that month's submissions) or
-    when *max_papers* papers have been successfully processed.
+    Iterates over paper IDs starting from *start_id*. Skips IDs with no
+    ar5iv page (404) and continues to the next. Stops when *max_papers*
+    papers have been successfully processed, or when all IDs are exhausted.
  
     Parameters
     ----------

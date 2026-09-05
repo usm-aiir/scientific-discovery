@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 table_sampler.py
@@ -121,7 +120,12 @@ def load_tables(output_dir: Path) -> pd.DataFrame:
         return str(val)
  
     tables_df["reference_text"] = tables_df["references"].apply(_join_refs)
-    tables_df["caption"] = tables_df.get("caption", pd.Series(dtype=str)).fillna("")
+ 
+    # Guard: caption column may be absent from JSONL records.
+    if "caption" not in tables_df.columns:
+        tables_df["caption"] = ""
+    else:
+        tables_df["caption"] = tables_df["caption"].fillna("")
  
     log.info(
         "Tables loaded: %d records from %d file(s).",
@@ -501,4 +505,3 @@ def parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = parse_args()
     main(output_dir=Path(args.output_dir), output_path=Path(args.output_tsv))
- 

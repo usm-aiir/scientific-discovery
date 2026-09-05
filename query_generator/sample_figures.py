@@ -29,12 +29,20 @@ Example
 """
  
 import argparse
+import logging
 import random
  
 import pandas as pd
  
-# Fixed seed for reproducibility
-random.seed(42)
+# Isolated RNG — does not affect global random state
+_rng = random.Random(42)
+ 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger(__name__)
  
 TARGET_SAMPLE_SIZE = 200
  
@@ -115,14 +123,23 @@ def load_data(data_dir: str, year: str, month: str) -> pd.DataFrame:
         .merge(metadata, on="paper_id", how="left")
     )
  
-    print(f"Loaded {len(merged):,} figure rows across "
-          f"{merged['paper_id'].nunique():,} papers")
+    log.info(
+        "Loaded %d figure rows across %d papers.",
+        len(merged), merged["paper_id"].nunique(),
+    )
     return merged
  
  
 # ---------------------------------------------------------------------------
 # Sampling
 # ---------------------------------------------------------------------------
+ 
+def _first_category(categories_str) -> str:
+    """Return the first category from a semicolon-separated categories string."""
+    if pd.isna(categories_str):
+        return ""
+    return str(categories_str).split(";")[0].strip()
+ 
  
 def _figure_dict(row: pd.Series, sampling_category: str = "") -> dict:
     """Build a figure record dict from a DataFrame row."""
@@ -146,7 +163,8 @@ def sample_figures(merged: pd.DataFrame) -> list[dict]:
  
     Step 1 — one random figure per category (ensures breadth).
     Step 2 — deduplicate (a figure may appear in multiple categories).
-    Step 3 — fill remaining slots with random figures not yet selected.
+    Step 3 — fill remaining slots with random figures not yet selected;
+              each fill figure is labelled with its first listed category.
     Step 4 — trim to exactly TARGET_SAMPLE_SIZE if we somehow exceed it.
     """
     # Step 1: one figure per category
@@ -157,14 +175,14 @@ def sample_figures(merged: pd.DataFrame) -> list[dict]:
         for cat in [c.strip() for c in str(row["categories"]).split(";")]:
             category_dict.setdefault(cat, []).append(row)
  
-    print(f"Found {len(category_dict)} distinct categories")
+    log.info("Found %d distinct categories.", len(category_dict))
  
     sampled = []
     for category, rows in category_dict.items():
-        row = random.choice(rows)
+        row = _rng.choice(rows)
         sampled.append(_figure_dict(row, sampling_category=category))
  
-    print(f"After category sampling: {len(sampled)} figures")
+    log.info("After category sampling: %d figures.", len(sampled))
  
     # Step 2: deduplicate
     seen: set[tuple] = set()
@@ -175,26 +193,26 @@ def sample_figures(merged: pd.DataFrame) -> list[dict]:
             seen.add(key)
             unique.append(fig)
  
-    print(f"After deduplication: {len(unique)} figures")
+    log.info("After deduplication: %d figures.", len(unique))
  
-    # Step 3: fill remaining slots
+    # Step 3: fill remaining slots; label each fill figure with its first category
     needed = TARGET_SAMPLE_SIZE - len(unique)
     if needed > 0:
         remaining = [
-            _figure_dict(row)
+            _figure_dict(row, sampling_category=_first_category(row["categories"]))
             for _, row in merged.iterrows()
             if not pd.isna(row["categories"])
             and (row["paper_id"], row["figure_id"]) not in seen
         ]
-        print(f"Filling {needed} remaining slots from {len(remaining):,} candidates")
-        extra = random.sample(remaining, min(needed, len(remaining)))
+        log.info("Filling %d remaining slots from %d candidates.", needed, len(remaining))
+        extra = _rng.sample(remaining, min(needed, len(remaining)))
         unique.extend(extra)
  
     # Step 4: trim
     if len(unique) > TARGET_SAMPLE_SIZE:
-        unique = random.sample(unique, TARGET_SAMPLE_SIZE)
+        unique = _rng.sample(unique, TARGET_SAMPLE_SIZE)
  
-    print(f"Final sample size: {len(unique)}")
+    log.info("Final sample size: %d.", len(unique))
     return unique
  
  
@@ -252,9 +270,8 @@ def main() -> None:
     df      = build_output_df(figures)
  
     df.to_csv(args.output_tsv, sep="\t", index=False)
- 
-    print(f"\nSaved {len(df)} figures to {args.output_tsv}")
-    print(df.head())
+    log.info("Saved %d figures to %s.", len(df), args.output_tsv)
+    log.info("First rows:\n%s", df.head().to_string())
  
  
 if __name__ == "__main__":
