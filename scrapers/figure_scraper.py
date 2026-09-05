@@ -1,3 +1,4 @@
+
 """
 arxiv_scraper.py
 ================
@@ -191,9 +192,31 @@ def is_equation_figure(fig_tag) -> bool:
     return False
  
  
+# Matches non-title metadata that ar5iv sometimes appends to the title element:
+# journal names, conference classifications (CCS:), footnotes (Thanks:, Note:),
+# and paper notes (This is a preprint..., This material is based...).
+_TITLE_NOISE = re.compile(
+    r"\s*(?:Journal|Conference|CCS|Thanks|Note|Price|DOI|ISBN)\s*:"
+    r"|This\s+(?:is\s+a\s+preprint|material\s+is\s+based|work\s+was\s+supported)",
+    re.IGNORECASE,
+)
+ 
+ 
+def _clean_title(title: str) -> str:
+    """Strip journal names, conference metadata, and footnotes from a raw title string."""
+    match = _TITLE_NOISE.search(title)
+    if match:
+        title = title[: match.start()].strip()
+    return title
+ 
+ 
 def parse_title_abstract(soup: BeautifulSoup) -> tuple[str, str]:
     """
     Extract the paper title and abstract from a parsed arXiv HTML page.
+ 
+    The raw title from ar5iv sometimes contains journal names, conference
+    classification tags, or footnotes appended directly to the title text.
+    ``_clean_title`` strips these before returning.
  
     Returns a ``(title, abstract)`` tuple. Either value is an empty string
     when the expected element cannot be found.
@@ -201,7 +224,8 @@ def parse_title_abstract(soup: BeautifulSoup) -> tuple[str, str]:
     title_tag = soup.find("h1", class_="ltx_title_document")
     title = ""
     if title_tag:
-        title = " ".join(extract_text_with_math(title_tag).split())
+        raw = " ".join(extract_text_with_math(title_tag).split())
+        title = _clean_title(raw)
  
     abstract_div = soup.find("div", class_="ltx_abstract")
     abstract = ""
@@ -432,6 +456,12 @@ def process_paper(
     figures         = parse_figures(soup, paper_url)
     fig_references  = parse_figure_references(soup)
     categories      = parse_categories(soup, full_id)
+ 
+    # Skip papers where ar5iv returned a page but has no parseable content.
+    # This avoids writing empty rows to the metadata/captions/references TSVs.
+    if not title and not abstract and not figures:
+        log.info("  ✗ %s – page found but no parseable content, skipping.", full_id)
+        return True
  
     # Save figure images
     fig_dir = output_dir / "figures" / year / month / full_id
