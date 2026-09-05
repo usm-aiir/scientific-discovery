@@ -103,7 +103,7 @@ def load_data(data_dir: str, year: str, month: str) -> pd.DataFrame:
         f"{data_dir}/references/ref_{year}_{month}.tsv", sep="\t"
     )
     metadata = pd.read_csv(
-        f"{data_dir}/metadata_{year}_{month}.tsv", sep="\t"
+        f"{data_dir}/figure_metadata_{year}_{month}.tsv", sep="\t"
     )
 
     # One metadata row per paper
