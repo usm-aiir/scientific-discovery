@@ -103,6 +103,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup, NavigableString, Tag
 
@@ -736,9 +737,15 @@ def _parse_title_abstract(soup: BeautifulSoup) -> tuple[str, str]:
     return title, abstract
 
 
+ARXIV_API_DELAY_SECONDS = 3.0  # arXiv asks for ≥3 s between API requests
+
+
 def _parse_categories(paper_id: str) -> list[str]:
     """
     Fetch arXiv subject categories for *paper_id* via the official arXiv API.
+
+    Sleeps for ARXIV_API_DELAY_SECONDS after each call to respect arXiv's
+    recommended rate limit of one request every 3 seconds.
 
     Returns a list of category strings (e.g. ``["cs.LG", "cs.CV"]``), or an
     empty list if the API call fails or returns no results.
@@ -755,6 +762,8 @@ def _parse_categories(paper_id: str) -> list[str]:
                     categories.append(term)
     except Exception as exc:
         log.warning("arXiv API category lookup failed for %s: %s", paper_id, exc)
+    finally:
+        time.sleep(ARXIV_API_DELAY_SECONDS)
     return categories
 
 
@@ -940,6 +949,56 @@ def scrape_range(
 
 
 # ---------------------------------------------------------------------------
+# Category backfill
+# ---------------------------------------------------------------------------
+
+def backfill_categories(year: str, month: str, output_dir: Path) -> None:
+    """
+    Re-fetch arXiv categories for papers that have a blank categories field
+    in the existing metadata TSV, then rewrite the file with the gaps filled.
+
+    This is a recovery tool for runs where the arXiv API was rate-limited
+    mid-scrape and left many rows without categories. It does not re-scrape
+    ar5iv pages or touch the table JSONL.
+
+    Parameters
+    ----------
+    year:
+        Two-digit year string, e.g. ``"24"``.
+    month:
+        Two-digit month string, e.g. ``"06"``.
+    output_dir:
+        Root directory containing the metadata TSV.
+    """
+    metadata_path = output_dir / f"table_metadata_{year}_{month}.tsv"
+    if not metadata_path.exists():
+        log.error("Metadata file not found: %s", metadata_path)
+        return
+
+    df = pd.read_csv(metadata_path, sep="\t", dtype=str).fillna("")
+    missing = df["categories"] == ""
+    n_missing = missing.sum()
+
+    if n_missing == 0:
+        log.info("No blank category rows found in %s — nothing to do.", metadata_path)
+        return
+
+    log.info(
+        "Backfilling categories for %d / %d papers in %s …",
+        n_missing, len(df), metadata_path,
+    )
+
+    for idx in df[missing].index:
+        paper_id = df.at[idx, "paper_id"]
+        categories = _parse_categories(paper_id)  # includes rate-limit delay
+        df.at[idx, "categories"] = "; ".join(categories)
+        log.info("  %s → %s", paper_id, df.at[idx, "categories"] or "(none)")
+
+    df.to_csv(metadata_path, sep="\t", index=False, encoding="utf-8")
+    log.info("Backfill complete. Rewrote %s.", metadata_path)
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -960,9 +1019,21 @@ if __name__ == "__main__":
         "--start-id", type=int, default=1,
         help="Paper sequence number to start from (default 1).",
     )
+    parser.add_argument(
+        "--backfill-categories", action="store_true",
+        help=(
+            "Re-fetch categories from the arXiv API for any paper in the "
+            "metadata TSV that currently has a blank categories field. "
+            "Does not re-scrape ar5iv pages or modify table records."
+        ),
+    )
     args = parser.parse_args()
 
     OUTPUT_ROOT = Path("arxiv_data")
-    scrape_month(args.year, args.month, OUTPUT_ROOT,
-                 max_papers=args.max_papers, start_id=args.start_id)
+
+    if args.backfill_categories:
+        backfill_categories(args.year, args.month, OUTPUT_ROOT)
+    else:
+        scrape_month(args.year, args.month, OUTPUT_ROOT,
+                     max_papers=args.max_papers, start_id=args.start_id)
  
