@@ -1,4 +1,3 @@
-
 #!/bin/bash
 ################################################################
 # run_figure_sample     - Bash script
@@ -49,3 +48,4 @@ conda activate scidiscovery
 echo "[ Running figure sampler for $YEAR/$MONTH ]"
 python3 query_generator/sample_figures.py "$YEAR" "$MONTH" $EXTRA_ARGS
 echo "Figure sampling complete."
+ 
