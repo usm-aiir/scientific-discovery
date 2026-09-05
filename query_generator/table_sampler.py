@@ -410,7 +410,7 @@ def build_output(
         for tid in ids:
             table_to_cats.setdefault(tid, []).append(cat)
     cat_lookup = {
-        tid: ", ".join(sorted(cats))
+        tid: ", ".join(sorted(c for c in cats if c != "_uncategorised"))
         for tid, cats in table_to_cats.items()
     }
  
