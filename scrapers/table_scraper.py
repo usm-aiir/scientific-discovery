@@ -4,22 +4,22 @@ table_scraper.py
 Scrapes arXiv HTML pages (via ar5iv) for tables: caption text, full cell
 grid (headers + values, with rowspan/colspan preserved), in-text references
 to each table, and any footnotes embedded in the caption or cells.
-
+ 
 Designed to sit alongside ``arxiv_scraper.py`` and reuse the same
 conventions. You can either run this script standalone, or import
 ``build_table_records()`` and call it from within your existing
 ``process_paper()`` to avoid a second HTTP request.
-
+ 
 Output layout
 -------------
 <output_dir>/
 └── tables/
     └── <year>_<month>.jsonl   one JSON object per table / sub-table panel
-
+ 
 Output record shape
 -------------------
 Each line of the JSONL file is one dict::
-
+ 
     {
       "table_id":   "2410.00004_T1",     # <paper_id>_T<num>[<sub_id>]
       "html_id":    "S3.T1",             # raw HTML id attribute
@@ -43,7 +43,7 @@ Each line of the JSONL file is one dict::
           "Overall, adding neighbors at this stage (Table 1) ..."
       ]
     }
-
+ 
 ar5iv quirks handled
 --------------------
 - **rowspan / colspan**: a grid-position algorithm tracks occupied cells so
@@ -62,74 +62,74 @@ ar5iv quirks handled
   wraps several logical tables (multiple direct ``<figcaption>`` children).
   We split on figcaption boundaries so each logical table becomes its own
   record.
-
+ 
 Public API
 ----------
 The two functions intended for external use are:
-
+ 
 - ``build_table_records(soup, paper_id)`` — parse all tables from a
   BeautifulSoup tree and return a list of complete record dicts (including
   in-text references).
 - ``write_tables_jsonl(records, path)`` — append those records to a JSONL
   file, one JSON object per line.
-
+ 
 All other parsing helpers are internal (prefixed with ``_``) and subject
 to change.
-
+ 
 Usage
 -----
 Standalone::
-
+ 
     python table_scraper.py 24 10               # scrape all of October 2024
     python table_scraper.py 24 10 --max-papers 5
     python table_scraper.py 24 10 --start-id 200
-
+ 
 Imported::
-
+ 
     from table_scraper import build_table_records, write_tables_jsonl
     table_records = build_table_records(soup, paper_id=full_id)
     write_tables_jsonl(table_records, output_dir / "tables" / f"{year}_{month}.jsonl")
 """
-
+ 
 from __future__ import annotations
-
+ 
 import json
 import logging
 import re
 import time
 from pathlib import Path
 from typing import List, Optional, Tuple
-
+ 
 import requests
 from bs4 import BeautifulSoup, NavigableString, Tag
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-
+ 
 ARXIV_HTML_BASE = "https://ar5iv.labs.arxiv.org/html/"
-
+ 
 REQUEST_DELAY_SECONDS = 1.0
 MAX_RETRIES = 3
 RETRY_BACKOFF_SECONDS = 5.0
-
+ 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-8s  %(message)s",
     datefmt="%H:%M:%S",
 )
 log = logging.getLogger(__name__)
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Networking helpers
 # ---------------------------------------------------------------------------
-
+ 
 def fetch_soup(url: str) -> Optional[BeautifulSoup]:
     """
     Download *url* and return a BeautifulSoup parse tree.
-
+ 
     Retries up to MAX_RETRIES times on transient HTTP/connection errors.
     Returns None immediately on 404 (paper does not exist), or after all
     retries are exhausted.
@@ -139,28 +139,28 @@ def fetch_soup(url: str) -> Optional[BeautifulSoup]:
             response = requests.get(url, timeout=30)
             response.raise_for_status()
             return BeautifulSoup(response.text, "html.parser")
-
+ 
         except requests.exceptions.HTTPError as exc:
             status = exc.response.status_code if exc.response else "?"
             if status == 404:
                 log.debug("404 – paper does not exist: %s", url)
                 return None
             log.warning("HTTP %s on attempt %d/%d for %s", status, attempt, MAX_RETRIES, url)
-
+ 
         except requests.exceptions.RequestException as exc:
             log.warning("Request error on attempt %d/%d for %s: %s", attempt, MAX_RETRIES, url, exc)
-
+ 
         if attempt < MAX_RETRIES:
             time.sleep(RETRY_BACKOFF_SECONDS)
-
+ 
     log.error("All %d attempts failed for %s", MAX_RETRIES, url)
     return None
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Text, math, and footnote extraction
 # ---------------------------------------------------------------------------
-
+ 
 def _flatten_nested_table(table_tag: Tag) -> str:
     """
     Flatten a ``<table>`` that appears inside a header cell into a single
@@ -173,12 +173,12 @@ def _flatten_nested_table(table_tag: Tag) -> str:
         if txt:
             parts.append(txt)
     return " ".join(parts)
-
-
+ 
+ 
 def extract_text_and_footnotes(element) -> Tuple[str, List[dict]]:
     """
     Walk *element* recursively, returning ``(clean_text, footnotes)`` where:
-
+ 
     - ``clean_text`` has math rendered as ``$...$`` and inline footnote
       spans replaced with lightweight ``[^N]`` markers.
     - ``footnotes`` is a list of ``{"marker": "N", "text": "..."}`` dicts
@@ -186,24 +186,24 @@ def extract_text_and_footnotes(element) -> Tuple[str, List[dict]]:
       *element* (these appear in both captions and cells in ar5iv HTML).
     """
     footnotes: List[dict] = []
-
+ 
     def _walk(el) -> str:
         if isinstance(el, NavigableString):
             return str(el)
-
+ 
         classes = el.get("class", []) if isinstance(el, Tag) else []
-
+ 
         if el.name == "math":
             alt = el.get("alttext", "")
             return f"${alt}$" if alt else el.get_text()
-
+ 
         if el.name == "table":
             return _flatten_nested_table(el)
-
+ 
         if "ltx_note" in classes and "ltx_role_footnote" in classes:
             mark_sup = el.find("sup", class_="ltx_note_mark")
             marker = mark_sup.get_text(strip=True) if mark_sup else "?"
-
+ 
             content_span = el.find("span", class_="ltx_note_content")
             note_text = ""
             if content_span is not None:
@@ -219,17 +219,17 @@ def extract_text_and_footnotes(element) -> Tuple[str, List[dict]]:
                         continue
                     inner.append(_walk(child))
                 note_text = " ".join("".join(inner).split())
-
+ 
             footnotes.append({"marker": marker, "text": note_text})
             return f"[^{marker}]"
-
+ 
         return "".join(_walk(child) for child in el.children)
-
+ 
     raw_text = _walk(element)
     clean_text = " ".join(raw_text.split())
     return clean_text, footnotes
-
-
+ 
+ 
 def _dedupe_footnotes(footnotes: List[dict]) -> List[dict]:
     """Remove duplicate footnotes (same marker + text) from a list."""
     seen = set()
@@ -240,16 +240,16 @@ def _dedupe_footnotes(footnotes: List[dict]) -> List[dict]:
             seen.add(key)
             out.append(fn)
     return out
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Caption helpers
 # ---------------------------------------------------------------------------
-
+ 
 def _outer_table_caption(table_fig: Tag) -> Tuple[str, List[dict]]:
     """
     Extract the top-level caption from a table figure element.
-
+ 
     Returns ``(caption_text, footnotes)``. Only looks at direct
     ``<figcaption class="ltx_caption">`` children to avoid picking up
     sub-panel captions.
@@ -258,26 +258,26 @@ def _outer_table_caption(table_fig: Tag) -> Tuple[str, List[dict]]:
         if isinstance(tag, Tag) and tag.name == "figcaption" and "ltx_caption" in tag.get("class", []):
             return extract_text_and_footnotes(tag)
     return "", []
-
-
+ 
+ 
 def _split_subcaptions(caption: str) -> List[Tuple[str, str]]:
     """
     Split a compound caption into labeled sub-panel entries.
-
+ 
     Example input:  ``"Table 1: (a) First panel. (b) Second panel."``
     Example output: ``[("a", "First panel."), ("b", "Second panel.")]``
-
+ 
     Returns an empty list if no sub-panel labels are found.
     """
     pattern = re.compile(r"\(([a-z])\)\s*([^)]*?)(?=\s*\([a-z]\)|$)")
     matches = pattern.findall(caption)
     return [(letter, text.strip()) for letter, text in matches]
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Grid extraction (handles thead/tbody, rowspan, colspan, nested tables)
 # ---------------------------------------------------------------------------
-
+ 
 def _iter_top_level_rows(table_tag: Tag) -> List[Tag]:
     """
     Return this table's own ``<tr>`` elements in document order without
@@ -290,16 +290,16 @@ def _iter_top_level_rows(table_tag: Tag) -> List[Tag]:
         else:
             rows.extend(child.find_all("tr", recursive=False))
     return rows
-
-
+ 
+ 
 def extract_table_grid(table_tag: Tag) -> Tuple[List[dict], int, int, List[dict]]:
     """
     Build the full cell grid for *table_tag*, tracking occupied positions
     so each cell gets correct ``(row, col)`` coordinates even when
     rowspan/colspan is used.
-
+ 
     Returns ``(cells, n_rows, n_cols, footnotes)``.
-
+ 
     Each cell dict contains ``row``, ``col``, ``text``, ``is_header``, and
     optionally ``rowspan`` / ``colspan`` when greater than 1. Only the
     origin (top-left) cell of a span is emitted — cells merged into it are
@@ -308,23 +308,23 @@ def extract_table_grid(table_tag: Tag) -> Tuple[List[dict], int, int, List[dict]
     cells: List[dict] = []
     footnotes: List[dict] = []
     occupied: dict = {}  # (row, col) -> True
-
+ 
     row_idx = 0
     for tr in _iter_top_level_rows(table_tag):
         col_idx = 0
         row_had_cells = False
-
+ 
         for cell_tag in tr.find_all(["th", "td"], recursive=False):
             row_had_cells = True
             while occupied.get((row_idx, col_idx)):
                 col_idx += 1
-
+ 
             colspan = int(cell_tag.get("colspan", 1) or 1)
             rowspan = int(cell_tag.get("rowspan", 1) or 1)
-
+ 
             text, cell_footnotes = extract_text_and_footnotes(cell_tag)
             footnotes.extend(cell_footnotes)
-
+ 
             cell: dict = {
                 "row":       row_idx,
                 "col":       col_idx,
@@ -336,31 +336,31 @@ def extract_table_grid(table_tag: Tag) -> Tuple[List[dict], int, int, List[dict]
             if rowspan > 1:
                 cell["rowspan"] = rowspan
             cells.append(cell)
-
+ 
             for r in range(row_idx, row_idx + rowspan):
                 for c in range(col_idx, col_idx + colspan):
                     occupied[(r, c)] = True
-
+ 
             col_idx += colspan
-
+ 
         if row_had_cells:
             row_idx += 1
-
+ 
     n_rows = row_idx
     n_cols = (max(c for _, c in occupied) + 1) if occupied else 0
     return cells, n_rows, n_cols, footnotes
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Splitting a wrapper into logical tables
 # (handles the rare multi-figcaption merged-wrapper quirk)
 # ---------------------------------------------------------------------------
-
+ 
 def _split_into_logical_groups(table_fig: Tag) -> List[Tuple[Tag, List[Tag]]]:
     """
     Split a ``<figure class="ltx_table">`` wrapper into
     ``(figcaption, [content_tags])`` groups.
-
+ 
     Most wrappers contain exactly one logical table. Occasionally one
     wrapper contains several back-to-back logical tables (multiple direct
     ``<figcaption>`` children). This function handles both cases uniformly
@@ -377,8 +377,8 @@ def _split_into_logical_groups(table_fig: Tag) -> List[Tuple[Tag, List[Tag]]]:
         elif current is not None:
             current[1].append(child)
     return groups
-
-
+ 
+ 
 def _find_panels(content_tags: List[Tag]) -> List[Tag]:
     """Find sub-panel figure elements within a multi-part table."""
     panels: List[Tag] = []
@@ -388,8 +388,8 @@ def _find_panels(content_tags: List[Tag]) -> List[Tag]:
         else:
             panels.extend(tag.find_all("figure", class_="ltx_figure_panel"))
     return panels
-
-
+ 
+ 
 def _find_direct_table(content_tags: List[Tag]) -> Optional[Tag]:
     """Find the first ``<table>`` element within a list of content tags."""
     for tag in content_tags:
@@ -399,41 +399,41 @@ def _find_direct_table(content_tags: List[Tag]) -> Optional[Tag]:
         if found is not None:
             return found
     return None
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Internal table parsing
 # ---------------------------------------------------------------------------
-
+ 
 def _parse_tables(soup: BeautifulSoup, paper_id: str) -> List[dict]:
     """
     Find every table on the page and return one record per logical table
     (or per sub-panel for multi-part tables like Table 14(a)/(b)).
-
+ 
     Note: records returned here do not yet have the ``references`` field.
     Use ``build_table_records()`` instead, which attaches references and
     is the intended public entry point.
     """
     records: List[dict] = []
     sequential_idx = 0
-
+ 
     top_level_tables = [
         fig for fig in soup.find_all("figure", class_="ltx_table")
         if "ltx_figure_panel" not in fig.get("class", [])
     ]
-
+ 
     for table_fig in top_level_tables:
         wrapper_html_id = table_fig.get("id", "")
-
+ 
         for figcaption_tag, content_tags in _split_into_logical_groups(table_fig):
             sequential_idx += 1
             outer_caption, outer_footnotes = extract_text_and_footnotes(figcaption_tag)
-
+ 
             num_match = re.search(r"\bTable\s+(\d+)", outer_caption, re.IGNORECASE)
             table_num = int(num_match.group(1)) if num_match else sequential_idx
-
+ 
             panels = _find_panels(content_tags)
-
+ 
             if panels:
                 _append_panel_records(
                     records, panels, outer_caption, outer_footnotes,
@@ -447,10 +447,10 @@ def _parse_tables(soup: BeautifulSoup, paper_id: str) -> List[dict]:
                     records, table_tag, outer_caption, outer_footnotes,
                     table_num, wrapper_html_id, paper_id,
                 )
-
+ 
     return records
-
-
+ 
+ 
 def _append_panel_records(
     records: List[dict],
     panels: List[Tag],
@@ -467,7 +467,7 @@ def _append_panel_records(
         sub_cap, sub_fns = _outer_table_caption(panel)
         panel_captions.append(sub_cap)
         panel_footnotes_list.append(sub_fns)
-
+ 
     if all(c == "" for c in panel_captions):
         sub_parts = _split_subcaptions(outer_caption)
         while len(sub_parts) < len(panels):
@@ -485,7 +485,7 @@ def _append_panel_records(
         for i, sid in enumerate(panel_sub_ids):
             if sid is None:
                 panel_sub_ids[i] = chr(ord("a") + i)
-
+ 
     for idx, panel in enumerate(panels):
         table_tag = panel.find("table")
         if table_tag is None:
@@ -496,7 +496,7 @@ def _append_panel_records(
         fns = list(outer_footnotes)
         fns.extend(panel_footnotes_list[idx] if idx < len(panel_footnotes_list) else [])
         fns.extend(cell_footnotes)
-
+ 
         records.append({
             "table_id":    f"{paper_id}_T{table_num}{sub_id}",
             "html_id":     panel.get("id", wrapper_html_id),
@@ -509,8 +509,8 @@ def _append_panel_records(
             "cells":       cells,
             "footnotes":   _dedupe_footnotes(fns),
         })
-
-
+ 
+ 
 def _append_single_record(
     records: List[dict],
     table_tag: Tag,
@@ -524,7 +524,7 @@ def _append_single_record(
     cells, n_rows, n_cols, cell_footnotes = extract_table_grid(table_tag)
     fns = list(outer_footnotes)
     fns.extend(cell_footnotes)
-
+ 
     records.append({
         "table_id":    f"{paper_id}_T{table_num}",
         "html_id":     wrapper_html_id,
@@ -537,12 +537,12 @@ def _append_single_record(
         "cells":       cells,
         "footnotes":   _dedupe_footnotes(fns),
     })
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Internal: in-text references to tables
 # ---------------------------------------------------------------------------
-
+ 
 def _parse_table_references(soup: BeautifulSoup) -> dict:
     """
     Return ``{table_num: [paragraph_text, ...]}`` for every logical table,
@@ -551,7 +551,7 @@ def _parse_table_references(soup: BeautifulSoup) -> dict:
     """
     table_numbers: List[int] = []
     sequential_idx = 0
-
+ 
     top_level_tables = [
         fig for fig in soup.find_all("figure", class_="ltx_table")
         if "ltx_figure_panel" not in fig.get("class", [])
@@ -563,10 +563,10 @@ def _parse_table_references(soup: BeautifulSoup) -> dict:
             match = re.search(r"\bTable\s+(\d+)", caption, re.IGNORECASE)
             table_num = int(match.group(1)) if match else sequential_idx
             table_numbers.append(table_num)
-
+ 
     references: dict = {n: [] for n in table_numbers}
     all_paragraphs = soup.find_all("p", class_="ltx_p")
-
+ 
     for table_num in table_numbers:
         pattern = re.compile(
             rf"\bTab(?:le|\.)?\s*{table_num}(?:[a-z]|\([a-z]\)|-[a-z])?\b",
@@ -578,32 +578,32 @@ def _parse_table_references(soup: BeautifulSoup) -> dict:
             text, _ = extract_text_and_footnotes(para)
             if pattern.search(text) and text not in references[table_num]:
                 references[table_num].append(text)
-
+ 
     return references
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-
+ 
 def build_table_records(soup: BeautifulSoup, paper_id: str) -> List[dict]:
     """
     Parse all tables from *soup* and attach in-text references to each record.
-
+ 
     This is the main entry point for external use. It returns complete records
     matching the output shape described in the module docstring, including the
     ``references`` field.
-
+ 
     Use this instead of calling internal helpers directly — they return
     incomplete records without ``references``.
-
+ 
     Parameters
     ----------
     soup:
         Parsed BeautifulSoup tree of an ar5iv paper page.
     paper_id:
         Full arXiv ID string, e.g. ``"2410.12325"``.
-
+ 
     Returns
     -------
     List[dict]
@@ -615,27 +615,61 @@ def build_table_records(soup: BeautifulSoup, paper_id: str) -> List[dict]:
     for rec in records:
         rec["references"] = refs_by_num.get(rec["table_num"], [])
     return records
-
-
+ 
+ 
 def write_tables_jsonl(records: List[dict], path: Path) -> None:
     """
     Append *records* to a JSONL file at *path* (one JSON object per line).
     Creates parent directories as needed.
-
-    Note: opens in append mode, so re-running on the same month will
-    produce duplicate rows. Delete the output file before re-scraping
-    if you need a clean run.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8") as fh:
         for rec in records:
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-
-
+ 
+ 
+def _load_scraped_paper_ids(jsonl_path: Path) -> set:
+    """
+    Return the set of paper_ids already written to *jsonl_path*.
+ 
+    Each JSONL record stores a ``table_id`` like ``"2406.00009_T2"``; the
+    paper_id is the portion before ``_T``. Used by ``scrape_month`` to skip
+    papers that were already processed in a previous (possibly interrupted)
+    run so restarting never re-scrapes work that is already done.
+ 
+    Returns an empty set when the file does not yet exist.
+    """
+    if not jsonl_path.exists():
+        return set()
+ 
+    scraped: set = set()
+    try:
+        with jsonl_path.open(encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                rec = json.loads(line)
+                table_id = rec.get("table_id", "")
+                # table_id format: "<paper_id>_T<num>[<letter>]"
+                match = re.match(r"^(.+?)_T\d+", table_id)
+                if match:
+                    scraped.add(match.group(1))
+    except Exception as exc:
+        log.warning("Could not read existing JSONL at %s: %s", jsonl_path, exc)
+ 
+    if scraped:
+        log.info(
+            "Resuming: found %d already-scraped paper(s) in %s — will skip them.",
+            len(scraped), jsonl_path,
+        )
+    return scraped
+ 
+ 
 # ---------------------------------------------------------------------------
 # Per-paper and batch processing
 # ---------------------------------------------------------------------------
-
+ 
 def process_paper(
     paper_id: str,
     year: str,
@@ -645,7 +679,7 @@ def process_paper(
     """
     Fetch a single arXiv paper's ar5iv HTML page, extract all table records,
     and append them to this month's JSONL output file.
-
+ 
     Parameters
     ----------
     paper_id:
@@ -657,7 +691,7 @@ def process_paper(
         Two-digit month string, e.g. ``"10"``.
     output_dir:
         Root directory for all output files.
-
+ 
     Returns
     -------
     bool
@@ -666,18 +700,18 @@ def process_paper(
     full_id   = f"{year}{month}.{paper_id}"
     paper_url = ARXIV_HTML_BASE + full_id
     log.info("Processing %s …", paper_url)
-
+ 
     soup = fetch_soup(paper_url)
     if soup is None:
         return False
-
+ 
     table_records = build_table_records(soup, paper_id=full_id)
     write_tables_jsonl(table_records, output_dir / "tables" / f"{year}_{month}.jsonl")
-
+ 
     log.info("  ✓ %s – %d table record(s)", full_id, len(table_records))
     return True
-
-
+ 
+ 
 def scrape_month(
     year: str,
     month: str,
@@ -687,11 +721,11 @@ def scrape_month(
 ) -> None:
     """
     Scrape tables from all papers for a given *year* / *month* in sequence.
-
+ 
     Iterates over paper IDs starting from *start_id*. Skips IDs with no
     ar5iv page (404) and continues to the next. Stops when *max_papers*
     papers have been successfully processed, or when all IDs are exhausted.
-
+ 
     Parameters
     ----------
     year:
@@ -710,26 +744,36 @@ def scrape_month(
         "=== Scraping tables for %s/%s (starting at %s.%05d) ===",
         year, month, year + month, start_id,
     )
+ 
+    jsonl_path = output_dir / "tables" / f"{year}_{month}.jsonl"
+    already_scraped = _load_scraped_paper_ids(jsonl_path)
+ 
     processed = 0
-
+ 
     for numeric_id in range(start_id, 100_000):
         paper_id = f"{numeric_id:05d}"
+        full_id  = f"{year}{month}.{paper_id}"
+ 
+        if full_id in already_scraped:
+            log.debug("Skipping %s – already scraped.", full_id)
+            continue
+ 
         found = process_paper(paper_id, year, month, output_dir)
-
+ 
         if not found:
             log.info("No paper at id %s – continuing to next.", paper_id)
             continue
-
+ 
         processed += 1
         if max_papers is not None and processed >= max_papers:
             log.info("Reached max_papers limit (%d). Stopping.", max_papers)
             break
-
+ 
         time.sleep(REQUEST_DELAY_SECONDS)
-
+ 
     log.info("Done. Processed %d paper(s) for %s/%s.", processed, year, month)
-
-
+ 
+ 
 def scrape_range(
     years: List[str],
     months: List[str],
@@ -738,7 +782,7 @@ def scrape_range(
 ) -> None:
     """
     Scrape every (year, month) combination in *years* × *months*.
-
+ 
     Parameters
     ----------
     years:
@@ -753,15 +797,15 @@ def scrape_range(
     for year in years:
         for month in months:
             scrape_month(year, month, output_dir, max_papers=max_papers_per_month)
-
-
+ 
+ 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-
+ 
 if __name__ == "__main__":
     import argparse
-
+ 
     parser = argparse.ArgumentParser(
         description="Scrape arXiv tables and metadata for a given month.",
         epilog="Example: python table_scraper.py 24 10",
@@ -777,7 +821,8 @@ if __name__ == "__main__":
         help="Paper sequence number to start from (default 1).",
     )
     args = parser.parse_args()
-
+ 
     OUTPUT_ROOT = Path("arxiv_data")
     scrape_month(args.year, args.month, OUTPUT_ROOT,
                  max_papers=args.max_papers, start_id=args.start_id)
+ 
