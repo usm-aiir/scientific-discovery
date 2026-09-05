@@ -271,7 +271,7 @@ def main() -> None:
 
     df.to_csv(args.output_tsv, sep="\t", index=False)
     log.info("Saved %d figures to %s.", len(df), args.output_tsv)
-    log.info("First rows:\n%s", df.head().to_string())
+
 
 
 if __name__ == "__main__":
