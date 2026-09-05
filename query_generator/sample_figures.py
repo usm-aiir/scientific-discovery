@@ -80,9 +80,11 @@ def parse_args() -> argparse.Namespace:
         "--data_dir", default="arxiv_data",
         help="Root directory of scraper output (default: arxiv_data)",
     )
+    args, _ = parser.parse_known_args()
+    default_output = f"{args.year}{args.month}_sampled_figures.tsv"
     parser.add_argument(
-        "--output_tsv", default="200_sampled_figures.tsv",
-        help="Output file path (default: 200_sampled_figures.tsv)",
+        "--output_tsv", default=default_output,
+        help="Output file path (default: <year><month>_sampled_figures.tsv)",
     )
     return parser.parse_args()
 
@@ -271,7 +273,7 @@ def main() -> None:
 
     df.to_csv(args.output_tsv, sep="\t", index=False)
     log.info("Saved %d figures to %s.", len(df), args.output_tsv)
-
+    log.info("First rows:\n%s", df.head().to_string())
 
 
 if __name__ == "__main__":
