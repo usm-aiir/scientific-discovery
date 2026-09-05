@@ -13,8 +13,9 @@ conventions. You can either run this script standalone, or import
 Output layout
 -------------
 <output_dir>/
-└── tables/
-    └── <year>_<month>.jsonl   one JSON object per table / sub-table panel
+├── tables/
+│   └── <year>_<month>.jsonl        one JSON object per table / sub-table panel
+└── metadata_<year>_<month>.tsv     columns: url, paper_id, title, abstract, categories
  
 Output record shape
 -------------------
@@ -93,10 +94,12 @@ Imported::
  
 from __future__ import annotations
  
+import csv
 import json
 import logging
 import re
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Optional, Tuple
  
@@ -628,42 +631,165 @@ def write_tables_jsonl(records: List[dict], path: Path) -> None:
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
  
  
-def _load_scraped_paper_ids(jsonl_path: Path) -> set:
+def _load_scraped_paper_ids(jsonl_path: Path, metadata_path: Path) -> set:
     """
-    Return the set of paper_ids already written to *jsonl_path*.
+    Return the set of paper_ids already processed in a previous run.
  
-    Each JSONL record stores a ``table_id`` like ``"2406.00009_T2"``; the
-    paper_id is the portion before ``_T``. Used by ``scrape_month`` to skip
-    papers that were already processed in a previous (possibly interrupted)
-    run so restarting never re-scrapes work that is already done.
+    Reads both the JSONL (tables) and the metadata TSV so that papers with
+    no tables (which write metadata but nothing to the JSONL) are also
+    skipped on resume.
  
-    Returns an empty set when the file does not yet exist.
+    Returns an empty set when neither file exists yet.
     """
-    if not jsonl_path.exists():
-        return set()
- 
     scraped: set = set()
-    try:
-        with jsonl_path.open(encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                rec = json.loads(line)
-                table_id = rec.get("table_id", "")
-                # table_id format: "<paper_id>_T<num>[<letter>]"
-                match = re.match(r"^(.+?)_T\d+", table_id)
-                if match:
-                    scraped.add(match.group(1))
-    except Exception as exc:
-        log.warning("Could not read existing JSONL at %s: %s", jsonl_path, exc)
+ 
+    # Read paper_ids from the JSONL (table_id format: "<paper_id>_T<num>")
+    if jsonl_path.exists():
+        try:
+            with jsonl_path.open(encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    rec = json.loads(line)
+                    match = re.match(r"^(.+?)_T\d+", rec.get("table_id", ""))
+                    if match:
+                        scraped.add(match.group(1))
+        except Exception as exc:
+            log.warning("Could not read existing JSONL at %s: %s", jsonl_path, exc)
+ 
+    # Also read paper_ids from the metadata TSV (covers papers with no tables)
+    if metadata_path.exists():
+        try:
+            with metadata_path.open(encoding="utf-8") as fh:
+                reader = csv.DictReader(fh, delimiter="\t")
+                for row in reader:
+                    pid = (row.get("paper_id") or "").strip()
+                    if pid:
+                        scraped.add(pid)
+        except Exception as exc:
+            log.warning("Could not read existing metadata at %s: %s", metadata_path, exc)
  
     if scraped:
         log.info(
-            "Resuming: found %d already-scraped paper(s) in %s — will skip them.",
-            len(scraped), jsonl_path,
+            "Resuming: found %d already-scraped paper(s) — will skip them.",
+            len(scraped),
         )
     return scraped
+ 
+ 
+# ---------------------------------------------------------------------------
+# Metadata parsing (title, abstract, categories)
+# ---------------------------------------------------------------------------
+ 
+# Matches non-title content that ar5iv sometimes appends to the title element:
+# journal names, conference tags (CCS:), footnotes (Thanks:, Note:), and
+# paper notes (This is a preprint...).
+_TITLE_NOISE = re.compile(
+    r"\s*(?:Journal|Conference|CCS|Thanks|Note|Price|DOI|ISBN)\s*:"
+    r"|This\s+(?:is\s+a\s+preprint|material\s+is\s+based|work\s+was\s+supported)",
+    re.IGNORECASE,
+)
+ 
+ 
+def _extract_text_with_math(element) -> str:
+    """
+    Recursively extract text from a BeautifulSoup element, rendering
+    LaTeX math tags as inline ``$...$`` expressions rather than discarding them.
+    """
+    if isinstance(element, NavigableString):
+        return str(element)
+    if element.name == "math":
+        alt = element.get("alttext", "")
+        return f"${alt}$" if alt else element.get_text()
+    return "".join(_extract_text_with_math(child) for child in element.children)
+ 
+ 
+def _clean_title(title: str) -> str:
+    """Strip journal names, conference metadata, and footnotes from a raw ar5iv title."""
+    match = _TITLE_NOISE.search(title)
+    if match:
+        title = title[: match.start()].strip()
+    return title
+ 
+ 
+def _parse_title_abstract(soup: BeautifulSoup) -> tuple[str, str]:
+    """
+    Extract the paper title and abstract from a parsed ar5iv HTML page.
+ 
+    Returns a ``(title, abstract)`` tuple; either value is an empty string
+    when the expected element cannot be found.
+    """
+    title_tag = soup.find("h1", class_="ltx_title_document")
+    title = ""
+    if title_tag:
+        raw = " ".join(_extract_text_with_math(title_tag).split())
+        title = _clean_title(raw)
+ 
+    abstract_div = soup.find("div", class_="ltx_abstract")
+    abstract = ""
+    if abstract_div:
+        abstract_p = abstract_div.find("p", class_="ltx_p")
+        if abstract_p:
+            abstract = " ".join(_extract_text_with_math(abstract_p).split())
+ 
+    return title, abstract
+ 
+ 
+def _parse_categories(paper_id: str) -> list[str]:
+    """
+    Fetch arXiv subject categories for *paper_id* via the official arXiv API.
+ 
+    Returns a list of category strings (e.g. ``["cs.LG", "cs.CV"]``), or an
+    empty list if the API call fails or returns no results.
+    """
+    categories: list[str] = []
+    try:
+        api_url = f"https://export.arxiv.org/api/query?id_list={paper_id}"
+        resp = requests.get(api_url, timeout=10)
+        if resp.status_code == 200:
+            root = ET.fromstring(resp.content)
+            for tag in root.findall(".//{http://www.w3.org/2005/Atom}category"):
+                term = tag.get("term", "")
+                if "." in term and term not in categories:
+                    categories.append(term)
+    except Exception as exc:
+        log.warning("arXiv API category lookup failed for %s: %s", paper_id, exc)
+    return categories
+ 
+ 
+def _write_metadata_row(
+    paper_url: str,
+    paper_id: str,
+    title: str,
+    abstract: str,
+    categories: list[str],
+    path: Path,
+) -> None:
+    """
+    Append one metadata row to *path* (a TSV file).
+ 
+    Creates parent directories and writes the header on the first call.
+    The format matches the metadata TSV produced by ``arxiv_scraper.py`` so
+    ``table_sampler.py`` can read both interchangeably.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    is_new = not path.exists()
+    with open(path, "a", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(
+            fh,
+            fieldnames=["url", "paper_id", "title", "abstract", "categories"],
+            delimiter="\t",
+        )
+        if is_new:
+            writer.writeheader()
+        writer.writerow({
+            "url":        paper_url,
+            "paper_id":   paper_id,
+            "title":      title,
+            "abstract":   abstract,
+            "categories": "; ".join(categories),
+        })
  
  
 # ---------------------------------------------------------------------------
@@ -678,7 +804,10 @@ def process_paper(
 ) -> bool:
     """
     Fetch a single arXiv paper's ar5iv HTML page, extract all table records,
-    and append them to this month's JSONL output file.
+    and append them to this month's JSONL output file. Also writes one row
+    to the shared metadata TSV (title, abstract, categories) so that
+    ``table_sampler.py`` can populate those fields without needing a separate
+    figure-scraper run.
  
     Parameters
     ----------
@@ -705,10 +834,20 @@ def process_paper(
     if soup is None:
         return False
  
-    table_records = build_table_records(soup, paper_id=full_id)
-    write_tables_jsonl(table_records, output_dir / "tables" / f"{year}_{month}.jsonl")
+    title, abstract = _parse_title_abstract(soup)
+    categories      = _parse_categories(full_id)
+    table_records   = build_table_records(soup, paper_id=full_id)
  
-    log.info("  ✓ %s – %d table record(s)", full_id, len(table_records))
+    write_tables_jsonl(table_records, output_dir / "tables" / f"{year}_{month}.jsonl")
+    _write_metadata_row(
+        paper_url, full_id, title, abstract, categories,
+        output_dir / f"metadata_{year}_{month}.tsv",
+    )
+ 
+    log.info(
+        "  ✓ %s – %d table record(s), %d category/ies",
+        full_id, len(table_records), len(categories),
+    )
     return True
  
  
@@ -745,8 +884,9 @@ def scrape_month(
         year, month, year + month, start_id,
     )
  
-    jsonl_path = output_dir / "tables" / f"{year}_{month}.jsonl"
-    already_scraped = _load_scraped_paper_ids(jsonl_path)
+    jsonl_path    = output_dir / "tables" / f"{year}_{month}.jsonl"
+    metadata_path = output_dir / f"metadata_{year}_{month}.tsv"
+    already_scraped = _load_scraped_paper_ids(jsonl_path, metadata_path)
  
     processed = 0
  
