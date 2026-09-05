@@ -38,11 +38,9 @@ fi
 if ! command -v conda &> /dev/null; then
     source "$HOME/miniconda3/etc/profile.d/conda.sh"
 fi
-eval "$(conda shell.bash hook)"
-conda activate scidiscovery
 
 echo "[ Running figure query generation (Gemma) ]"
-python3 query_generator/generate_figure_queries.py \
+conda run -n scidiscovery python3 query_generator/generate_figure_queries.py \
     --captions_tsv "$1" \
     --metadata_tsv "$2" \
     --ref_tsv      "$3" \

@@ -43,9 +43,7 @@ EXTRA_ARGS="$@"
 if ! command -v conda &> /dev/null; then
     source "$HOME/miniconda3/etc/profile.d/conda.sh"
 fi
-eval "$(conda shell.bash hook)"
-conda activate scidiscovery
 
 echo "[ Running arXiv table scraper for $YEAR/$MONTH ]"
-python3 scrapers/table_scraper.py "$YEAR" "$MONTH" $EXTRA_ARGS
+conda run -n scidiscovery python3 scrapers/table_scraper.py "$YEAR" "$MONTH" $EXTRA_ARGS
 echo "Table scrape complete."
