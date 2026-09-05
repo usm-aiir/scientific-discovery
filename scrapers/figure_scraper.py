@@ -19,7 +19,7 @@ Output layout
 │   └── <year>_<month>.tsv        columns: paper_id, figure_id, sub_id, caption, sub_caption
 ├── references/
 │   └── ref_<year>_<month>.tsv    columns: paper_id, figure_id, reference_text
-└── metadata_<year>_<month>.tsv   columns: url, paper_id, title, abstract, categories
+└── figure_metadata_<year>_<month>.tsv   columns: url, paper_id, title, abstract, categories
  
 Usage
 -----
@@ -508,7 +508,7 @@ def process_paper(
  
     # Append paper metadata
     meta_fh, meta_writer = _tsv_writer(
-        output_dir / f"metadata_{year}_{month}.tsv",
+        output_dir / f"figure_metadata_{year}_{month}.tsv",
         fieldnames=["url", "paper_id", "title", "abstract", "categories"],
     )
     try:
@@ -596,7 +596,7 @@ def scrape_month(
     """
     log.info("=== Scraping %s/%s (starting at %s.%05d) ===", year, month, year + month, start_id)
 
-    metadata_path = output_dir / f"metadata_{year}_{month}.tsv"
+    metadata_path = output_dir / f"figure_metadata_{year}_{month}.tsv"
     already_scraped = _load_scraped_ids(metadata_path)
 
     processed = 0
