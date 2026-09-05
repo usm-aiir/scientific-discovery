@@ -2,29 +2,25 @@
 """
 table_sampler.py
 ================
-Reads output files produced by table_scraper.py and arxiv_scraper.py,
+Reads output files produced by table_scraper.py for a single year/month,
 merges them, and draws a reproducible stratified random sample of exactly
 200 unique tables while maintaining category diversity.
 
-Input files (auto-discovered under OUTPUT_DIR):
-  tables/<year>_<month>.jsonl    -- one JSON record per table (table_scraper.py)
-  table_metadata_<year>_<month>.tsv   -- one row per paper  (table_scraper.py)
-
-Both scrapers may produce multiple files (one per month); this script
-globs for all of them and concatenates before sampling.
+Input files (for the given year/month):
+  tables/<year>_<month>.jsonl          -- one JSON record per table (table_scraper.py)
+  table_metadata_<year>_<month>.tsv    -- one row per paper  (table_scraper.py)
 
 Output:
-  sampled_tables.tsv -- 200-row TSV with the columns defined in OUTPUT_COLUMNS
+  <year><month>_sampled_tables.tsv -- 200-row TSV with the columns defined in OUTPUT_COLUMNS
 
 Usage
 -----
-  python table_sampler.py
-  python table_sampler.py /path/to/arxiv_data
-  python table_sampler.py /path/to/arxiv_data /path/to/sampled_tables.tsv
+  python table_sampler.py <year> <month> [output_dir] [output_tsv]
 
 Example
 -------
-  python table_sampler.py arxiv_data sampled_tables.tsv
+  python table_sampler.py 24 03
+  python table_sampler.py 24 03 arxiv_data 2403_sampled_tables.tsv
 """
 
 from __future__ import annotations
@@ -83,10 +79,10 @@ log = logging.getLogger(__name__)
 # 1. Loading
 # ---------------------------------------------------------------------------
 
-def load_tables(output_dir: Path) -> pd.DataFrame:
+def load_tables(output_dir: Path, year: str, month: str) -> pd.DataFrame:
     """
-    Load every tables/<year>_<month>.jsonl file under output_dir and
-    return a single concatenated DataFrame.
+    Load the tables/<year>_<month>.jsonl file for the given month and
+    return a DataFrame of table records.
 
     Each JSONL line is one table record written by table_scraper.py.
     The references field is a list of paragraph strings; we join them
@@ -96,20 +92,15 @@ def load_tables(output_dir: Path) -> pd.DataFrame:
     derive it by stripping the trailing _T<num>[<letter>] suffix from
     table_id (e.g. "2410.00004_T1" -> "2410.00004").
     """
-    jsonl_files = sorted((output_dir / "tables").glob("*.jsonl"))
-    if not jsonl_files:
+    jsonl_path = output_dir / "tables" / f"{year}_{month}.jsonl"
+    if not jsonl_path.exists():
         raise FileNotFoundError(
-            f"No JSONL files found under {output_dir / 'tables'}.\n"
+            f"No JSONL file found at {jsonl_path}.\n"
             "Check that table_scraper.py has finished writing output there."
         )
 
-    frames: List[pd.DataFrame] = []
-    for path in jsonl_files:
-        log.info("Loading tables from %s ...", path)
-        df = pd.read_json(path, lines=True, dtype=False)
-        frames.append(df)
-
-    tables_df = pd.concat(frames, ignore_index=True)
+    log.info("Loading tables from %s ...", jsonl_path)
+    tables_df = pd.read_json(jsonl_path, lines=True, dtype=False)
 
     # Derive paper_id from table_id.
     # table_id format: "<paper_id>_T<num>" or "<paper_id>_T<num><letter>"
@@ -131,36 +122,27 @@ def load_tables(output_dir: Path) -> pd.DataFrame:
     else:
         tables_df["caption"] = tables_df["caption"].fillna("")
 
-    log.info(
-        "Tables loaded: %d records from %d file(s).",
-        len(tables_df), len(jsonl_files),
-    )
+    log.info("Tables loaded: %d records.", len(tables_df))
     return tables_df
 
 
-def load_metadata(output_dir: Path) -> pd.DataFrame:
+def load_metadata(output_dir: Path, year: str, month: str) -> pd.DataFrame:
     """
-    Load every table_metadata_<year>_<month>.tsv file under output_dir and
-    return a single concatenated DataFrame.
+    Load the table_metadata_<year>_<month>.tsv file for the given month.
 
-    Columns written by arxiv_scraper.py: url, paper_id, title, abstract, categories.
+    Columns written by table_scraper.py: url, paper_id, title, abstract, categories.
     The categories field uses "; " (semicolon) as the separator between
     multiple category labels (e.g. "cs.LG; cs.CL").
     """
-    tsv_files = sorted(output_dir.glob("table_metadata_*.tsv"))
-    if not tsv_files:
+    tsv_path = output_dir / f"table_metadata_{year}_{month}.tsv"
+    if not tsv_path.exists():
         raise FileNotFoundError(
-            f"No table_metadata TSV files found under {output_dir}.\n"
+            f"No metadata file found at {tsv_path}.\n"
             "Check that table_scraper.py has finished writing output there."
         )
 
-    frames: List[pd.DataFrame] = []
-    for path in tsv_files:
-        log.info("Loading metadata from %s ...", path)
-        df = pd.read_csv(path, sep="\t", dtype=str)
-        frames.append(df)
-
-    metadata_df = pd.concat(frames, ignore_index=True)
+    log.info("Loading metadata from %s ...", tsv_path)
+    metadata_df = pd.read_csv(tsv_path, sep="\t", dtype=str)
 
     # Normalise column names.
     metadata_df.columns = (
@@ -189,10 +171,7 @@ def load_metadata(output_dir: Path) -> pd.DataFrame:
         else:
             metadata_df[col] = ""
 
-    log.info(
-        "Metadata loaded: %d papers from %d file(s).",
-        len(metadata_df), len(tsv_files),
-    )
+    log.info("Metadata loaded: %d papers.", len(metadata_df))
     return metadata_df
 
 
@@ -468,15 +447,18 @@ def write_output(output_df: pd.DataFrame, path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def main(
+    year: str,
+    month: str,
     output_dir: Path = OUTPUT_DIR,
     output_path: Path = OUTPUT_TSV,
     sample_size: int  = SAMPLE_SIZE,
     seed: int         = RANDOM_SEED,
 ) -> pd.DataFrame:
     """
-    End-to-end pipeline:
+    End-to-end pipeline for a single year/month:
 
-      load tables (JSONL) + load metadata (TSV)
+      load tables/<year>_<month>.jsonl
+        + load table_metadata_<year>_<month>.tsv
         -> merge on paper_id
         -> build category index
         -> stratified sample
@@ -487,12 +469,12 @@ def main(
     the file (useful in notebooks or when importing this module).
     """
     log.info(
-        "=== table_sampler.py  output_dir=%s  seed=%d  target=%d tables ===",
-        output_dir, seed, sample_size,
+        "=== table_sampler.py  %s/%s  output_dir=%s  seed=%d  target=%d tables ===",
+        year, month, output_dir, seed, sample_size,
     )
 
-    tables_df      = load_tables(output_dir)
-    metadata_df    = load_metadata(output_dir)
+    tables_df      = load_tables(output_dir, year, month)
+    metadata_df    = load_metadata(output_dir, year, month)
     merged_df      = merge_dataframes(tables_df, metadata_df)
     category_index = build_category_index(merged_df)
     sampled_ids    = stratified_sample(category_index, sample_size, seed)
@@ -510,20 +492,28 @@ def main(
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(
         description="Draw a stratified random sample of 200 tables from scraper output.",
-        epilog="Example:\n  python table_sampler.py arxiv_data sampled_tables.tsv",
+        epilog="Example:\n  python table_sampler.py 24 03 arxiv_data 2403_sampled_tables.tsv",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    ap.add_argument("year",  help="Two-digit year  (e.g. 24 for 2024)")
+    ap.add_argument("month", help="Two-digit month (e.g. 03 for March)")
     ap.add_argument(
         "output_dir", nargs="?", default=str(OUTPUT_DIR),
         help=f"Root directory of scraper output (default: {OUTPUT_DIR})",
     )
     ap.add_argument(
-        "output_tsv", nargs="?", default=str(OUTPUT_TSV),
-        help=f"Path for the output TSV (default: {OUTPUT_TSV})",
+        "output_tsv", nargs="?", default=None,
+        help="Path for the output TSV (default: <year><month>_sampled_tables.tsv)",
     )
     return ap.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    main(output_dir=Path(args.output_dir), output_path=Path(args.output_tsv))
+    output_tsv = args.output_tsv or f"{args.year}{args.month}_sampled_tables.tsv"
+    main(
+        year=args.year,
+        month=args.month,
+        output_dir=Path(args.output_dir),
+        output_path=Path(output_tsv),
+    )
