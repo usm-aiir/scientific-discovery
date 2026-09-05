@@ -12,13 +12,13 @@ usage() {
     echo "usage: $0 <year> <month> [output_dir] [output_tsv]"
     echo ""
     echo "  year         Two-digit year  (e.g. 24 for 2024)"
-    echo "  month        Two-digit month (e.g. 06 for June)"
+    echo "  month        Two-digit month (e.g. 03 for March)"
     echo "  output_dir   Root directory of scraper output (default: arxiv_data)"
     echo "  output_tsv   Path for output file (default: <year><month>_sampled_tables.tsv)"
     echo ""
     echo "Examples:"
-    echo "  $0 24 06"
-    echo "  $0 24 06 arxiv_data results/2406_sampled_tables.tsv"
+    echo "  $0 24 03"
+    echo "  $0 24 03 arxiv_data results/2403_sampled_tables.tsv"
 }
 
 if [[ $1 == "--help" || $1 == "-h" ]]; then
@@ -45,6 +45,8 @@ fi
 
 echo "[ Running table sampler for ${YEAR}/${MONTH} ]"
 "$PYTHON" query_generator/table_sampler.py \
+    "$YEAR" \
+    "$MONTH" \
     "$OUTPUT_DIR" \
     "$OUTPUT_TSV"
 echo "Sampling complete."
