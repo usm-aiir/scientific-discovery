@@ -1,5 +1,3 @@
-
-
 """
 arxiv_scraper.py
 ================
@@ -201,24 +199,24 @@ _TITLE_NOISE = re.compile(
     r"|This\s+(?:is\s+a\s+preprint|material\s+is\s+based|work\s+was\s+supported)",
     re.IGNORECASE,
 )
- 
- 
+
+
 def _clean_title(title: str) -> str:
     """Strip journal names, conference metadata, and footnotes from a raw title string."""
     match = _TITLE_NOISE.search(title)
     if match:
         title = title[: match.start()].strip()
     return title
- 
- 
+
+
 def parse_title_abstract(soup: BeautifulSoup) -> tuple[str, str]:
     """
     Extract the paper title and abstract from a parsed arXiv HTML page.
- 
+
     The raw title from ar5iv sometimes contains journal names, conference
     classification tags, or footnotes appended directly to the title text.
     ``_clean_title`` strips these before returning.
- 
+
     Returns a ``(title, abstract)`` tuple. Either value is an empty string
     when the expected element cannot be found.
     """
@@ -227,14 +225,14 @@ def parse_title_abstract(soup: BeautifulSoup) -> tuple[str, str]:
     if title_tag:
         raw = " ".join(extract_text_with_math(title_tag).split())
         title = _clean_title(raw)
- 
+
     abstract_div = soup.find("div", class_="ltx_abstract")
     abstract = ""
     if abstract_div:
         abstract_p = abstract_div.find("p", class_="ltx_p")
         if abstract_p:
             abstract = " ".join(extract_text_with_math(abstract_p).split())
- 
+
     return title, abstract
  
  
@@ -457,13 +455,13 @@ def process_paper(
     figures         = parse_figures(soup, paper_url)
     fig_references  = parse_figure_references(soup)
     categories      = parse_categories(soup, full_id)
- 
+
     # Skip papers where ar5iv returned a page but has no parseable content.
     # This avoids writing empty rows to the metadata/captions/references TSVs.
     if not title and not abstract and not figures:
         log.info("  ✗ %s – page found but no parseable content, skipping.", full_id)
         return True
- 
+
     # Save figure images
     fig_dir = output_dir / "figures" / year / month / full_id
     fig_dir.mkdir(parents=True, exist_ok=True)
@@ -532,6 +530,38 @@ def process_paper(
 # Batch scraping
 # ---------------------------------------------------------------------------
  
+def _load_scraped_ids(metadata_path: Path) -> set[str]:
+    """
+    Return the set of paper_ids already written to *metadata_path*.
+
+    Used by scrape_month to skip papers that were successfully scraped in a
+    previous (possibly interrupted) run, so restarting never re-scrapes work
+    that is already done.
+
+    Returns an empty set when the file does not yet exist.
+    """
+    if not metadata_path.exists():
+        return set()
+
+    scraped: set[str] = set()
+    try:
+        with metadata_path.open(encoding="utf-8") as fh:
+            reader = csv.DictReader(fh, delimiter="\t")
+            for row in reader:
+                pid = (row.get("paper_id") or "").strip()
+                if pid:
+                    scraped.add(pid)
+    except Exception as exc:
+        log.warning("Could not read existing metadata at %s: %s", metadata_path, exc)
+
+    if scraped:
+        log.info(
+            "Resuming: found %d already-scraped paper(s) in %s — will skip them.",
+            len(scraped), metadata_path,
+        )
+    return scraped
+
+
 def scrape_month(
     year: str,
     month: str,
@@ -541,11 +571,15 @@ def scrape_month(
 ) -> None:
     """
     Scrape all papers for a given *year* / *month* in sequence.
- 
+
     Iterates over paper IDs starting from *start_id* and stops when a paper
     is not found (indicating the end of that month's submissions), or when
     *max_papers* papers have been processed.
- 
+
+    Already-scraped papers are detected automatically by reading the existing
+    metadata TSV; any paper whose ID already appears there is skipped without
+    making a network request.
+
     Parameters
     ----------
     year:
@@ -561,23 +595,33 @@ def scrape_month(
         interrupted run.
     """
     log.info("=== Scraping %s/%s (starting at %s.%05d) ===", year, month, year + month, start_id)
+
+    metadata_path = output_dir / f"metadata_{year}_{month}.tsv"
+    already_scraped = _load_scraped_ids(metadata_path)
+
     processed = 0
- 
+
     for numeric_id in range(start_id, 100_000):
         paper_id = f"{numeric_id:05d}"
+        full_id  = f"{year}{month}.{paper_id}"
+
+        if full_id in already_scraped:
+            log.debug("Skipping %s – already scraped.", full_id)
+            continue
+
         found = process_paper(paper_id, year, month, output_dir)
- 
+
         if not found:
             log.info("No paper at id %s – continuing to next.", paper_id)
             continue
- 
+
         processed += 1
         if max_papers is not None and processed >= max_papers:
             log.info("Reached max_papers limit (%d). Stopping.", max_papers)
             break
- 
+
         time.sleep(REQUEST_DELAY_SECONDS)
- 
+
     log.info("Done. Processed %d paper(s) for %s/%s.", processed, year, month)
  
  
