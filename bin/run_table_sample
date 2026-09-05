@@ -5,33 +5,46 @@
 #
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 ################################################################
- 
+
 usage() {
     echo "Builds a stratified random sample of 200 tables from scraper output."
     echo ""
-    echo "usage: $0 [output_dir] [output_tsv]"
+    echo "usage: $0 <year> <month> [output_dir] [output_tsv]"
     echo ""
+    echo "  year         Two-digit year  (e.g. 24 for 2024)"
+    echo "  month        Two-digit month (e.g. 06 for June)"
     echo "  output_dir   Root directory of scraper output (default: arxiv_data)"
-    echo "  output_tsv   Path for output file (default: sampled_tables.tsv)"
+    echo "  output_tsv   Path for output file (default: <year><month>_sampled_tables.tsv)"
     echo ""
     echo "Examples:"
-    echo "  $0"
-    echo "  $0 arxiv_data sampled_tables.tsv"
+    echo "  $0 24 06"
+    echo "  $0 24 06 arxiv_data results/2406_sampled_tables.tsv"
 }
- 
+
 if [[ $1 == "--help" || $1 == "-h" ]]; then
     usage
     exit 0
 fi
- 
+
+if [[ -z "$1" || -z "$2" ]]; then
+    echo "Error: year and month are required."
+    usage
+    exit 1
+fi
+
+YEAR="$1"
+MONTH="$2"
+OUTPUT_DIR="${3:-arxiv_data}"
+OUTPUT_TSV="${4:-${YEAR}${MONTH}_sampled_tables.tsv}"
+
 PYTHON="$HOME/miniconda3/envs/scidiscovery/bin/python3"
 if [ ! -f "$PYTHON" ]; then
     echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
- 
-echo "[ Running table sampler ]"
+
+echo "[ Running table sampler for ${YEAR}/${MONTH} ]"
 "$PYTHON" query_generator/table_sampler.py \
-    "${1:-arxiv_data}" \
-    "${2:-sampled_tables.tsv}"
+    "$OUTPUT_DIR" \
+    "$OUTPUT_TSV"
 echo "Sampling complete."
