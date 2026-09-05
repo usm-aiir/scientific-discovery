@@ -5,7 +5,7 @@
 #
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 ################################################################
-
+ 
 usage() {
     echo "Scrapes arXiv HTML pages for a given year and month,"
     echo "extracting paper metadata, figures, captions, and in-text references."
@@ -22,28 +22,30 @@ usage() {
     echo "  $0 24 10 --max-papers 5         # scrape first 5 papers only"
     echo "  $0 24 10 --start-id 200         # resume from paper 00200"
 }
-
+ 
 if [[ $1 == "--help" || $1 == "-h" ]]; then
     usage
     exit 0
 fi
-
+ 
 if [ $# -lt 2 ]; then
     usage
     exit 1
 fi
-
+ 
 YEAR=$1
 MONTH=$2
 shift 2
-
+ 
 EXTRA_ARGS="$@"
-
-# Initialize conda (works whether or not conda is already on PATH)
-if ! command -v conda &> /dev/null; then
-    source "$HOME/miniconda3/etc/profile.d/conda.sh"
+ 
+PYTHON="$HOME/miniconda3/envs/scidiscovery/bin/python3"
+if [ ! -f "$PYTHON" ]; then
+    echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
+    exit 1
 fi
-
+ 
 echo "[ Running arXiv figure scraper for $YEAR/$MONTH ]"
-conda run -n scidiscovery python3 scrapers/figure_scraper.py "$YEAR" "$MONTH" $EXTRA_ARGS
+"$PYTHON" scrapers/figure_scraper.py "$YEAR" "$MONTH" $EXTRA_ARGS
 echo "Scrape complete."
+ 
