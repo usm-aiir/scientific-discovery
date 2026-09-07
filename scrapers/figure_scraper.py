@@ -534,34 +534,35 @@ def process_paper(
 # Batch scraping
 # ---------------------------------------------------------------------------
  
-def _load_scraped_ids(metadata_path: Path) -> set[str]:
+def _load_scraped_ids(captions_path: Path) -> set[str]:
     """
-    Return the set of paper_ids already written to *metadata_path*.
+    Return the set of paper_ids already written to *captions_path*.
 
-    Used by scrape_month to skip papers that were successfully scraped in a
-    previous (possibly interrupted) run, so restarting never re-scrapes work
-    that is already done.
+    Reads from the captions TSV (not metadata) so that only papers with
+    actual caption data written are considered done. This prevents a gap
+    where metadata was written for a paper but the scrape was interrupted
+    before captions were saved — those papers will be re-scraped on resume.
 
     Returns an empty set when the file does not yet exist.
     """
-    if not metadata_path.exists():
+    if not captions_path.exists():
         return set()
 
     scraped: set[str] = set()
     try:
-        with metadata_path.open(encoding="utf-8") as fh:
+        with captions_path.open(encoding="utf-8") as fh:
             reader = csv.DictReader(fh, delimiter="\t")
             for row in reader:
                 pid = (row.get("paper_id") or "").strip()
                 if pid:
                     scraped.add(pid)
     except Exception as exc:
-        log.warning("Could not read existing metadata at %s: %s", metadata_path, exc)
+        log.warning("Could not read existing captions at %s: %s", captions_path, exc)
 
     if scraped:
         log.info(
-            "Resuming: found %d already-scraped paper(s) in %s — will skip them.",
-            len(scraped), metadata_path,
+            "Resuming: found %d already-scraped paper(s) in captions — will skip them.",
+            len(scraped),
         )
     return scraped
 
@@ -581,8 +582,9 @@ def scrape_month(
     *max_papers* papers have been processed.
 
     Already-scraped papers are detected automatically by reading the existing
-    metadata TSV; any paper whose ID already appears there is skipped without
-    making a network request.
+    captions TSV; any paper whose ID already appears there is skipped without
+    making a network request. Using captions (not metadata) ensures papers
+    where the scrape was interrupted mid-write get properly re-scraped.
 
     Parameters
     ----------
@@ -600,8 +602,8 @@ def scrape_month(
     """
     log.info("=== Scraping %s/%s (starting at %s.%05d) ===", year, month, year + month, start_id)
 
-    metadata_path = output_dir / f"figure_metadata_{year}_{month}.tsv"
-    already_scraped = _load_scraped_ids(metadata_path)
+    captions_path = output_dir / "captions" / f"{year}_{month}.tsv"
+    already_scraped = _load_scraped_ids(captions_path)
 
     processed = 0
 
