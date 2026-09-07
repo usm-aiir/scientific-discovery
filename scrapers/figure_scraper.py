@@ -367,13 +367,28 @@ def parse_figure_references(soup: BeautifulSoup) -> dict[str, list[str]]:
     return references
  
  
+# Delay between arXiv API calls to avoid rate-limiting.
+# The arXiv API recommends >= 3 seconds between requests.
+ARXIV_API_DELAY_SECONDS = 3.0
+
+# The scheme URL that identifies arXiv subject categories in the Atom XML.
+_ARXIV_CATEGORY_SCHEME = "http://arxiv.org/schemas/atom"
+
+
 def parse_categories(soup: BeautifulSoup, paper_id: str) -> list[str]:
     """
     Fetch arXiv subject categories for *paper_id* via the official arXiv API.
- 
+
     Categories are not embedded in the ar5iv HTML body, so we query
     ``export.arxiv.org/api/query`` and parse the Atom XML response.
- 
+
+    Filter: only <category> tags whose scheme matches the arXiv subject
+    category scheme are kept. This correctly includes categories without
+    a "." (e.g. quant-ph, gr-qc, hep-ph) that a dot-based filter would miss.
+
+    A 3-second sleep is always performed after the API call to respect the
+    arXiv rate-limit guidelines.
+
     Returns a list of category strings (e.g. ``["cs.HC", "cs.AI"]``), or an
     empty list if the API call fails.
     """
@@ -387,11 +402,19 @@ def parse_categories(soup: BeautifulSoup, paper_id: str) -> list[str]:
             for category_tag in root.findall(
                 ".//{http://www.w3.org/2005/Atom}category"
             ):
-                term = category_tag.get("term")
-                if term and "." in term and term not in categories:
+                term   = category_tag.get("term", "")
+                scheme = category_tag.get("scheme", "")
+                if term and scheme == _ARXIV_CATEGORY_SCHEME and term not in categories:
                     categories.append(term)
+        else:
+            log.warning(
+                "arXiv API returned HTTP %d for %s — categories will be empty.",
+                api_resp.status_code, paper_id,
+            )
     except Exception as exc:
-        log.warning("arXiv API category lookup failed: %s", exc)
+        log.warning("arXiv API category lookup failed for %s: %s", paper_id, exc)
+    finally:
+        time.sleep(ARXIV_API_DELAY_SECONDS)
     return categories
  
  
