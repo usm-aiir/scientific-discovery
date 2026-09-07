@@ -153,7 +153,7 @@ def _figure_dict(row: pd.Series, sampling_category: str = "") -> dict:
         "figure_id":         row["figure_id"],
         "paper_url":         paper_url,
         "figure_url":        figure_url,
-        "caption":           row["caption"],
+        "caption":           row["caption"] or row.get("sub_caption", ""),
         "reference_text":    row.get("reference_text", ""),
         "title":             row["title"],
         "abstract":          row["abstract"],
