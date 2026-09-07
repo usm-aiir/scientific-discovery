@@ -261,18 +261,19 @@ def parse_figures(soup: BeautifulSoup, paper_url: str) -> list[dict]:
     for fig in top_level_figures:
         if is_equation_figure(fig):
             continue
- 
+
         sequential_idx += 1
         outer_caption = _outer_caption(fig)
- 
+        wrapper_html_id = fig.get("id", "")
+
         num_match = re.search(r"\bFigure\s+(\d+)", outer_caption, re.IGNORECASE)
         fig_id = int(num_match.group(1)) if num_match else sequential_idx
- 
+
         panels = fig.find_all("figure", class_="ltx_figure_panel")
- 
+
         if panels:
             panel_captions = [_outer_caption(panel) for panel in panels]
- 
+
             if all(c == "" for c in panel_captions):
                 # No individual panel captions — try splitting the outer caption
                 sub_parts = split_subcaptions(outer_caption)
@@ -292,7 +293,7 @@ def parse_figures(soup: BeautifulSoup, paper_url: str) -> list[dict]:
                 for sub in panel_captions:
                     sub_match = re.search(r"\(([a-z])\)", sub, re.IGNORECASE)
                     panel_sub_ids.append(sub_match.group(1).lower() if sub_match else None)
- 
+
             for idx, panel in enumerate(panels):
                 img_tag = panel.find("img")
                 img_src = (
@@ -303,6 +304,7 @@ def parse_figures(soup: BeautifulSoup, paper_url: str) -> list[dict]:
                 rows.append({
                     "figure_id":   fig_id,
                     "sub_id":      panel_sub_ids[idx] if idx < len(panel_sub_ids) else None,
+                    "html_id":     panel.get("id", wrapper_html_id),
                     "source":      img_src,
                     "caption":     outer_caption,
                     "sub_caption": panel_captions[idx] if idx < len(panel_captions) else "",
@@ -317,6 +319,7 @@ def parse_figures(soup: BeautifulSoup, paper_url: str) -> list[dict]:
             rows.append({
                 "figure_id":   fig_id,
                 "sub_id":      None,
+                "html_id":     wrapper_html_id,
                 "source":      img_src,
                 "caption":     outer_caption,
                 "sub_caption": None,
@@ -474,7 +477,7 @@ def process_paper(
     # Append captions
     cap_fh, cap_writer = _tsv_writer(
         output_dir / "captions" / f"{year}_{month}.tsv",
-        fieldnames=["paper_id", "figure_id", "sub_id", "caption", "sub_caption"],
+        fieldnames=["paper_id", "figure_id", "sub_id", "html_id", "caption", "sub_caption"],
     )
     try:
         for row in figures:
@@ -482,6 +485,7 @@ def process_paper(
                 "paper_id":    full_id,
                 "figure_id":   row["figure_id"],
                 "sub_id":      row["sub_id"] or "",
+                "html_id":     row.get("html_id", ""),
                 "caption":     row["caption"],
                 "sub_caption": row["sub_caption"] or "",
             })
@@ -675,4 +679,4 @@ if __name__ == "__main__":
  
     OUTPUT_ROOT = Path("arxiv_data")
     scrape_month(args.year, args.month, OUTPUT_ROOT,
-                 max_papers=args.max_papers, start_id=args.start_id)
+                 max_papers=args.max_papers, start_id=args.start_id)x

@@ -145,11 +145,14 @@ def _first_category(categories_str) -> str:
 
 def _figure_dict(row: pd.Series, sampling_category: str = "") -> dict:
     """Build a figure record dict from a DataFrame row."""
+    paper_url = row["url"]
+    html_id   = str(row.get("html_id", "") or "").strip()
+    figure_url = f"{paper_url}#{html_id}" if html_id else paper_url
     return {
         "paper_id":          row["paper_id"],
         "figure_id":         row["figure_id"],
-        "paper_url":         row["url"],
-        "figure_url":        "",        # filled later by a helper script
+        "paper_url":         paper_url,
+        "figure_url":        figure_url,
         "caption":           row["caption"],
         "reference_text":    row.get("reference_text", ""),
         "title":             row["title"],
