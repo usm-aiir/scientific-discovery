@@ -27,6 +27,14 @@ Pipeline
 6. Write paper_id, figure_id, sub_id, and query to a TSV incrementally so
    the script is safely resumable if interrupted.
  
+Note on image usage
+-------------------
+Image paths are resolved and used as a quality filter (figures with no
+image on disk are dropped). The agents themselves are text-only (Gemma
+does not have vision), so they work from the caption, abstract, and
+in-text references rather than the image pixels. Queries are grounded
+in the textual description of the figure rather than its visual content.
+ 
 Output TSV columns
 ------------------
 paper_id, figure_id, sub_id, query
@@ -423,18 +431,21 @@ def run_agent1(chat: GemmaChat, row: pd.Series,
     """
     Agent 1 (Author): draft a query from the figure context.
  
-    If prior_query and feedback are provided, revise the previous attempt
-    based on the reviewer's feedback.
+    If feedback is provided (whether from a rejection or a parse failure on
+    the previous attempt), it is included in the prompt so Agent 1 can revise.
  
     Returns the query string, or None if the model response could not be parsed.
     """
     context  = figure_context_block(row)
     user_msg = f"Figure information:\n{context}\n\nProduce the JSON now."
-    if prior_query is not None and feedback:
+ 
+    if feedback:
+        # Include whatever context we have from the prior attempt.
+        prior_note = f'Your previous attempt: "{prior_query}"\n' if prior_query else ""
         user_msg = (
             f"Figure information:\n{context}\n\n"
-            f"Your previous attempt: \"{prior_query}\"\n"
-            f"Reviewer feedback: {feedback}\n"
+            f"{prior_note}"
+            f"Feedback: {feedback}\n"
             f"Revise the query to address this feedback. Produce the JSON now."
         )
  
@@ -491,8 +502,9 @@ def generate_query_for_figure(chat: GemmaChat, row: pd.Series,
     Run the two-agent loop for a single figure.
  
     Agent 1 drafts a query; Agent 2 accepts or rejects it with feedback.
-    Repeats up to max_rounds times. Returns the accepted query string, or
-    None if no query was accepted within the round limit.
+    Feedback from both parse failures and rejections is passed back to
+    Agent 1 on the next attempt. Repeats up to max_rounds times.
+    Returns the accepted query string, or None if no query was accepted.
     """
     query, feedback = None, None
     for attempt in range(1, max_rounds + 1):
@@ -662,4 +674,3 @@ def main() -> None:
  
 if __name__ == "__main__":
     main()
- 
