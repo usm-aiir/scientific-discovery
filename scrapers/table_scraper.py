@@ -547,13 +547,47 @@ def _append_single_record(
 # Internal: in-text references to tables
 # ---------------------------------------------------------------------------
 
+def _roman_to_int(s: str) -> int | None:
+    """Convert a Roman numeral string to an integer, or return None if not valid."""
+    roman = {"I": 1, "V": 5, "X": 10, "L": 50, "C": 100, "D": 500, "M": 1000}
+    s = s.upper()
+    if not s or not all(c in roman for c in s):
+        return None
+    result, prev = 0, 0
+    for ch in reversed(s):
+        val = roman[ch]
+        result += val if val >= prev else -val
+        prev = val
+    return result if result > 0 else None
+
+
+# Matches the label portion of a table caption, e.g.:
+#   "Table 3"  "TABLE III"  "Table A1"  "Tab. 4b"  "Table B.2"
+_CAPTION_LABEL_RE = re.compile(
+    r"\bTab(?:le|\.?)?\s*"          # Tab / Table / Tab.
+    r"([A-Z]\.?)?"                  # optional appendix letter prefix (A, B, A.)
+    r"(\d+|[IVXLCDMivxlcdm]+)"     # Arabic digits OR Roman numerals
+    r"(?:[a-z]|\([a-z]\))?",        # optional sub-table suffix
+    re.IGNORECASE,
+)
+
+
 def _parse_table_references(soup: BeautifulSoup) -> dict:
     """
-    Return ``{table_num: [paragraph_text, ...]}`` for every logical table,
-    scanning body paragraphs for mentions like ``"Table 3"``, ``"Tab. 3"``,
-    or ``"Tab 3a"``.
+    Return ``{table_label: [paragraph_text, ...]}`` for every logical table,
+    scanning body paragraphs for mentions of that table.
+
+    ``table_label`` is the canonical label string extracted from the caption
+    (e.g. ``"3"``, ``"III"``, ``"A1"``).  It is also stored on each record
+    as ``table_label`` so ``build_table_records`` can join correctly.
+
+    Handles:
+    - Arabic numerals:   Table 3, Tab. 3, Tab 3a
+    - Roman numerals:    TABLE I, Table II, Tab. IV
+    - Appendix prefixes: Table A1, Table B.2, Table A
     """
-    table_numbers: List[int] = []
+    # --- Step 1: extract one label per logical table from its caption ---------
+    table_labels: List[str] = []
     sequential_idx = 0
 
     top_level_tables = [
@@ -564,24 +598,31 @@ def _parse_table_references(soup: BeautifulSoup) -> dict:
         for figcaption_tag, _ in _split_into_logical_groups(table_fig):
             sequential_idx += 1
             caption, _ = extract_text_and_footnotes(figcaption_tag)
-            match = re.search(r"\bTable\s+(\d+)", caption, re.IGNORECASE)
-            table_num = int(match.group(1)) if match else sequential_idx
-            table_numbers.append(table_num)
+            m = _CAPTION_LABEL_RE.search(caption)
+            if m:
+                prefix = (m.group(1) or "").rstrip(".")
+                number = m.group(2)
+                label  = f"{prefix}{number}" if prefix else number
+            else:
+                label = str(sequential_idx)
+            table_labels.append(label)
 
-    references: dict = {n: [] for n in table_numbers}
+    # --- Step 2: for each label build a search pattern -----------------------
+    references: dict = {lbl: [] for lbl in table_labels}
     all_paragraphs = soup.find_all("p", class_="ltx_p")
 
-    for table_num in table_numbers:
+    for label in table_labels:
+        escaped = re.escape(label)
         pattern = re.compile(
-            rf"\bTab(?:le|\.)?\s*{table_num}(?:[a-z]|\([a-z]\)|-[a-z])?\b",
+            rf"\bTab(?:le|\.?)?\s*{escaped}(?:[a-z]|\([a-z]\)|[-\.][a-z0-9])?\b",
             re.IGNORECASE,
         )
         for para in all_paragraphs:
             if para.find_parent("figure") is not None:
                 continue
             text, _ = extract_text_and_footnotes(para)
-            if pattern.search(text) and text not in references[table_num]:
-                references[table_num].append(text)
+            if pattern.search(text) and text not in references[label]:
+                references[label].append(text)
 
     return references
 
@@ -615,9 +656,20 @@ def build_table_records(soup: BeautifulSoup, paper_id: str) -> List[dict]:
         ``write_tables_jsonl()``.
     """
     records = _parse_tables(soup, paper_id)
-    refs_by_num = _parse_table_references(soup)
+    refs_by_label = _parse_table_references(soup)
+
     for rec in records:
-        rec["references"] = refs_by_num.get(rec["table_num"], [])
+        # Derive the same label that _parse_table_references extracted from
+        # the caption so the lookup matches regardless of numeral style.
+        caption = rec.get("caption") or ""
+        m = _CAPTION_LABEL_RE.search(caption)
+        if m:
+            prefix = (m.group(1) or "").rstrip(".")
+            number = m.group(2)
+            label  = f"{prefix}{number}" if prefix else number
+        else:
+            label = str(rec["table_num"])
+        rec["references"] = refs_by_label.get(label, [])
     return records
 
 
@@ -1036,4 +1088,3 @@ if __name__ == "__main__":
     else:
         scrape_month(args.year, args.month, OUTPUT_ROOT,
                      max_papers=args.max_papers, start_id=args.start_id)
- 
