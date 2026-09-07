@@ -198,13 +198,13 @@ def merge_dataframes(
             merged[col] = ""
 
     # Drop rows missing required fields — these can't produce a usable sample row.
-    # Required: title and abstract (metadata matched), categories (needed for stratification),
-    # and caption (nothing useful to show without one).
+    # Required: title, abstract, and caption. Categories is NOT required — tables
+    # without categories can still appear in gap-fill sampling. Requiring it would
+    # discard good data from months scraped before the category API fix.
     before = len(merged)
     merged = merged[
         (merged["title"] != "") &
         (merged["abstract"] != "") &
-        (merged["categories"] != "") &
         (merged["caption"] != "")
     ]
     dropped = before - len(merged)

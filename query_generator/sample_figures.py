@@ -127,8 +127,11 @@ def load_data(data_dir: str, year: str, month: str) -> pd.DataFrame:
 
     before = len(merged)
 
-    # Drop rows where metadata didn't match (no url/title/abstract/categories)
-    merged = merged.dropna(subset=["url", "title", "abstract", "categories"])
+    # Drop rows where metadata didn't match (no url/title/abstract).
+    # Categories is NOT required here — uncategorized figures can still fill
+    # remaining sample slots. Requiring it would discard most figures from
+    # months scraped before the category API fix.
+    merged = merged.dropna(subset=["url", "title", "abstract"])
 
     # Drop rows with no usable caption at all
     def _has_caption(row) -> bool:
@@ -231,14 +234,15 @@ def sample_figures(merged: pd.DataFrame) -> list[dict]:
 
     log.info("After deduplication: %d figures.", len(unique))
 
-    # Step 3: fill remaining slots; label each fill figure with its first category
+    # Step 3: fill remaining slots; label each fill figure with its first category.
+    # Figures with no categories are included here — they just get an empty
+    # sampling_category. This ensures uncategorized months still reach 200 figures.
     needed = TARGET_SAMPLE_SIZE - len(unique)
     if needed > 0:
         remaining = [
             _figure_dict(row, sampling_category=_first_category(row["categories"]))
             for _, row in merged.iterrows()
-            if not pd.isna(row["categories"])
-            and (row["paper_id"], row["figure_id"]) not in seen
+            if (row["paper_id"], row["figure_id"]) not in seen
         ]
         log.info("Filling %d remaining slots from %d candidates.", needed, len(remaining))
         extra = _rng.sample(remaining, min(needed, len(remaining)))
