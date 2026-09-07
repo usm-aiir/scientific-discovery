@@ -5,7 +5,7 @@
 #
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 ################################################################
- 
+
 usage() {
     echo "Generates figure search queries using a local Gemma model."
     echo ""
@@ -23,25 +23,25 @@ usage() {
     echo "  $0 arxiv_data/captions/24_10.tsv arxiv_data/metadata_24_10.tsv \\"
     echo "     arxiv_data/references/ref_24_10.tsv arxiv_data/figures queries_200.tsv"
 }
- 
+
 if [[ $1 == "--help" || $1 == "-h" ]]; then
     usage
     exit 0
 fi
- 
+
 if [ $# -lt 4 ]; then
     usage
     exit 1
 fi
- 
-PYTHON="$HOME/miniconda3/envs/scidiscovery/bin/python3"
-if [ ! -f "$PYTHON" ]; then
+
+PYTHON=$(conda run -n scidiscovery which python3 2>/dev/null)
+if [ -z "$PYTHON" ]; then
     echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
- 
+
 echo "[ Running figure query generation (Gemma) ]"
-"$PYTHON" query_generator/generate_figure_queries.py \
+"$PYTHON" query_generator/generate_figure_queries_gemma.py \
     --captions_tsv "$1" \
     --metadata_tsv "$2" \
     --ref_tsv      "$3" \
