@@ -679,4 +679,4 @@ if __name__ == "__main__":
  
     OUTPUT_ROOT = Path("arxiv_data")
     scrape_month(args.year, args.month, OUTPUT_ROOT,
-                 max_papers=args.max_papers, start_id=args.start_id)x
+                 max_papers=args.max_papers, start_id=args.start_id)
