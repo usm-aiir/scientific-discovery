@@ -197,12 +197,21 @@ def merge_dataframes(
         else:
             merged[col] = ""
 
-    n_missing_meta = (merged["title"] == "").sum()
-    if n_missing_meta:
-        log.warning(
-            "%d table(s) have no matching paper metadata "
-            "(title / abstract / url will be blank in the output).",
-            n_missing_meta,
+    # Drop rows missing required fields — these can't produce a usable sample row.
+    # Required: title and abstract (metadata matched), categories (needed for stratification),
+    # and caption (nothing useful to show without one).
+    before = len(merged)
+    merged = merged[
+        (merged["title"] != "") &
+        (merged["abstract"] != "") &
+        (merged["categories"] != "") &
+        (merged["caption"] != "")
+    ]
+    dropped = before - len(merged)
+    if dropped:
+        log.info(
+            "Dropped %d table rows with missing required fields (%d remain).",
+            dropped, len(merged),
         )
 
     log.info("Merged DataFrame: %d rows, %d columns.", *merged.shape)
