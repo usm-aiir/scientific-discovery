@@ -125,10 +125,32 @@ def load_data(data_dir: str, year: str, month: str) -> pd.DataFrame:
         .merge(metadata, on="paper_id", how="left")
     )
 
-    log.info(
-        "Loaded %d figure rows across %d papers.",
-        len(merged), merged["paper_id"].nunique(),
-    )
+    before = len(merged)
+
+    # Drop rows where metadata didn't match (no url/title/abstract/categories)
+    merged = merged.dropna(subset=["url", "title", "abstract", "categories"])
+
+    # Drop rows with no usable caption at all
+    def _has_caption(row) -> bool:
+        cap = row.get("caption", "")
+        sub = row.get("sub_caption", "")
+        cap_ok = not pd.isna(cap) and str(cap).strip() != ""
+        sub_ok = not pd.isna(sub) and str(sub).strip() != ""
+        return cap_ok or sub_ok
+
+    merged = merged[merged.apply(_has_caption, axis=1)]
+
+    dropped = before - len(merged)
+    if dropped:
+        log.info(
+            "Dropped %d figure rows with missing required fields (%d remain across %d papers).",
+            dropped, len(merged), merged["paper_id"].nunique(),
+        )
+    else:
+        log.info(
+            "Loaded %d figure rows across %d papers (no rows dropped).",
+            len(merged), merged["paper_id"].nunique(),
+        )
     return merged
 
 
@@ -148,12 +170,21 @@ def _figure_dict(row: pd.Series, sampling_category: str = "") -> dict:
     paper_url = row["url"]
     html_id   = str(row.get("html_id", "") or "").strip()
     figure_url = f"{paper_url}#{html_id}" if html_id else paper_url
+
+    # Use caption if non-empty; fall back to sub_caption.
+    # Must check pd.isna() first — NaN is truthy in Python, so "nan or x" returns nan.
+    cap = row.get("caption", "")
+    sub = row.get("sub_caption", "")
+    caption = str(cap).strip() if not pd.isna(cap) and str(cap).strip() else (
+        str(sub).strip() if not pd.isna(sub) else ""
+    )
+
     return {
         "paper_id":          row["paper_id"],
         "figure_id":         row["figure_id"],
         "paper_url":         paper_url,
         "figure_url":        figure_url,
-        "caption":           row["caption"] or row.get("sub_caption", ""),
+        "caption":           caption,
         "reference_text":    row.get("reference_text", ""),
         "title":             row["title"],
         "abstract":          row["abstract"],
@@ -276,7 +307,6 @@ def main() -> None:
 
     df.to_csv(args.output_tsv, sep="\t", index=False)
     log.info("Saved %d figures to %s.", len(df), args.output_tsv)
-    log.info("First rows:\n%s", df.head().to_string())
 
 
 if __name__ == "__main__":
