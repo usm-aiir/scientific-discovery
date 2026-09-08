@@ -39,7 +39,7 @@ if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
 fi
 
 echo "[ Running table sampler ]"
-"$CONDA_CMD" run -n scidiscovery python3 query_generator/table_sampler.py \
+"$CONDA_CMD" run --no-capture-output -n scidiscovery python3 query_generator/table_sampler.py \
     "${1:-arxiv_data}" \
     "${2:-sampled_tables.tsv}"
 echo "Sampling complete."

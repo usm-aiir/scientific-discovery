@@ -52,5 +52,5 @@ if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
 fi
 
 echo "[ Running arXiv table scraper for $YEAR/$MONTH ]"
-"$CONDA_CMD" run -n scidiscovery python3 scrapers/table_scraper.py "$YEAR" "$MONTH" "$@"
+"$CONDA_CMD" run --no-capture-output -n scidiscovery python3 scrapers/table_scraper.py "$YEAR" "$MONTH" "$@"
 echo "Table scrape complete."

@@ -64,7 +64,7 @@ else
 fi
 
 echo "[ Running figure query generation (Gemma) ]"
-"$CONDA_CMD" run -n scidiscovery python3 query_generator/generate_figure_queries_gemma.py \
+"$CONDA_CMD" run --no-capture-output -n scidiscovery python3 query_generator/generate_figure_queries_gemma.py \
     --captions_tsv "$CAPTIONS_TSV" \
     --metadata_tsv "$METADATA_TSV" \
     --ref_tsv      "$REF_TSV" \

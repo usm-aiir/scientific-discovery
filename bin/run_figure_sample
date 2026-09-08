@@ -50,5 +50,5 @@ if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
 fi
 
 echo "[ Running figure sampler for $YEAR/$MONTH ]"
-"$CONDA_CMD" run -n scidiscovery python3 query_generator/sample_figures.py "$YEAR" "$MONTH" "$@"
+"$CONDA_CMD" run --no-capture-output -n scidiscovery python3 query_generator/sample_figures.py "$YEAR" "$MONTH" "$@"
 echo "Figure sampling complete."
