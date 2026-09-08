@@ -406,6 +406,16 @@ class GemmaChat:
         )
         self.model.eval()
 
+        # For device_map="auto" models, self.model.device is unreliable —
+        # it can return "meta" or an invalid device ID, corrupting the CUDA
+        # context when tensors are moved to it.  Cache the first real (non-meta)
+        # parameter's device; fall back to cuda:0 or cpu if all params are meta.
+        self._input_device = next(
+            (p.device for p in self.model.parameters() if p.device.type != "meta"),
+            torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+        )
+        log.info("Input device for tensor transfers: %s", self._input_device)
+
         # Gemma 4 vision encoder forward casts pixel_values to
         # patch_dense.weight.dtype before passing them to patch_ln1.  With
         # 4-bit quantisation on bitsandbytes, patch_dense.weight.dtype can
@@ -498,7 +508,7 @@ class GemmaChat:
                 text=prompt_text,
                 images=[image],
                 return_tensors="pt",
-            ).to(self.model.device)
+            ).to(self._input_device)
         else:
             # FIX #2: use the same two-step pattern as the multimodal path
             # (tokenize=False → get string → processor call) instead of
@@ -513,7 +523,7 @@ class GemmaChat:
             inputs = self.processor(
                 text=prompt_text,
                 return_tensors="pt",
-            ).to(self.model.device)
+            ).to(self._input_device)
 
         input_len = inputs["input_ids"].shape[1]
         with torch.no_grad():
