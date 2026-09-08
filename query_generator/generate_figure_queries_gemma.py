@@ -504,21 +504,23 @@ class GemmaChat:
                 add_generation_prompt=True,
                 tokenize=False,
             )
-            inputs = self.processor(
+            raw_inputs = self.processor(
                 text=prompt_text,
                 images=[image],
                 return_tensors="pt",
             )
-            # Cast floating-point tensors to float16 on CPU *before* moving to
-            # the GPU.  On Turing (compute 7.5, e.g. RTX 2080 Ti) the bfloat16
-            # CUDA kernels don't exist, so placing a bfloat16 tensor on the
-            # device triggers a device-side assert.  Casting here (on CPU) is
-            # safe — CPU has no dtype restrictions — and avoids the GPU error.
-            for key in list(inputs.keys()):
-                t = inputs[key]
-                if isinstance(t, torch.Tensor) and t.is_floating_point() and t.dtype != torch.float16:
-                    inputs[key] = t.to(torch.float16)
-            inputs = inputs.to(self._input_device)
+            # BatchFeature.to() iterates self.data, which is separate from the
+            # dict layer — so in-place key assignment doesn't reach it.  Build
+            # a plain dict manually: cast float tensors to float16 on CPU first
+            # (Turing has no bfloat16 CUDA kernels), then move to the device.
+            inputs = {
+                k: (v.to(dtype=torch.float16).to(device=self._input_device)
+                    if isinstance(v, torch.Tensor) and v.is_floating_point()
+                    else v.to(device=self._input_device)
+                    if isinstance(v, torch.Tensor)
+                    else v)
+                for k, v in raw_inputs.items()
+            }
         else:
             # FIX #2: use the same two-step pattern as the multimodal path
             # (tokenize=False → get string → processor call) instead of
@@ -530,10 +532,18 @@ class GemmaChat:
                 add_generation_prompt=True,
                 tokenize=False,
             )
-            inputs = self.processor(
+            raw_inputs = self.processor(
                 text=prompt_text,
                 return_tensors="pt",
-            ).to(self._input_device)
+            )
+            inputs = {
+                k: (v.to(dtype=torch.float16).to(device=self._input_device)
+                    if isinstance(v, torch.Tensor) and v.is_floating_point()
+                    else v.to(device=self._input_device)
+                    if isinstance(v, torch.Tensor)
+                    else v)
+                for k, v in raw_inputs.items()
+            }
 
         input_len = inputs["input_ids"].shape[1]
         with torch.no_grad():
