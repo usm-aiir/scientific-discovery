@@ -406,15 +406,57 @@ class GemmaChat:
         )
         self.model.eval()
 
-        # For device_map="auto" models, self.model.device is unreliable —
-        # it can return "meta" or an invalid device ID, corrupting the CUDA
-        # context when tensors are moved to it.  Cache the first real (non-meta)
-        # parameter's device; fall back to cuda:0 or cpu if all params are meta.
-        self._input_device = next(
-            (p.device for p in self.model.parameters() if p.device.type != "meta"),
-            torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-        )
-        log.info("Input device for tensor transfers: %s", self._input_device)
+        # With device_map="auto" the model may be split across multiple GPUs.
+        # input_ids must land on the embedding layer's device specifically —
+        # that is the first layer that consumes them.  Params4bit (bitsandbytes
+        # 4-bit) also sometimes reports its .device as CPU even when the actual
+        # computation runs on CUDA, so scanning raw parameters is unreliable.
+        # Instead, find the first Embedding module with a non-meta weight.
+        self._input_device = None
+        for module in self.model.modules():
+            if isinstance(module, torch.nn.Embedding):
+                d = module.weight.device
+                if d.type != "meta":
+                    self._input_device = d
+                    break
+        if self._input_device is None:
+            # Fallback: first non-meta, non-cpu float parameter.
+            for p in self.model.parameters():
+                if p.device.type not in ("meta", "cpu") and p.is_floating_point():
+                    self._input_device = p.device
+                    break
+        if self._input_device is None:
+            self._input_device = torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            )
+        log.info("Input device (embedding layer): %s", self._input_device)
+
+        # --- DEBUG: dump device map and first 10 parameter dtypes/devices ---
+        print("=== MODEL DEVICE MAP ===")
+        if hasattr(self.model, "hf_device_map"):
+            for layer, dev in self.model.hf_device_map.items():
+                print(f"  {layer}: {dev}")
+        else:
+            print("  (no hf_device_map)")
+        print("=== PARAMETER SAMPLE (first 10) ===")
+        for name, p in list(self.model.named_parameters())[:10]:
+            print(f"  {name}: device={p.device} dtype={p.dtype}")
+        print(f"=== _input_device = {self._input_device} ===")
+        # --- END DEBUG ---
+
+        # Flush any async CUDA errors that occurred during model loading so
+        # they surface here with a clear message rather than masquerading as
+        # a later .to() failure.
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.synchronize(self._input_device)
+                log.info("CUDA context healthy after model load.")
+            except RuntimeError as cuda_err:
+                log.error(
+                    "CUDA error detected right after model.from_pretrained — "
+                    "likely a bitsandbytes / Turing incompatibility: %s", cuda_err
+                )
+                raise
 
         # Gemma 4 vision encoder forward casts pixel_values to
         # patch_dense.weight.dtype before passing them to patch_ln1.  With
@@ -509,18 +551,35 @@ class GemmaChat:
                 images=[image],
                 return_tensors="pt",
             )
-            # BatchFeature.to() iterates self.data, which is separate from the
-            # dict layer — so in-place key assignment doesn't reach it.  Build
-            # a plain dict manually: cast float tensors to float16 on CPU first
-            # (Turing has no bfloat16 CUDA kernels), then move to the device.
-            inputs = {
-                k: (v.to(dtype=torch.float16).to(device=self._input_device)
-                    if isinstance(v, torch.Tensor) and v.is_floating_point()
-                    else v.to(device=self._input_device)
-                    if isinstance(v, torch.Tensor)
-                    else v)
-                for k, v in raw_inputs.items()
-            }
+            # BatchFeature.to() iterates self.data, separate from the dict
+            # layer, so in-place key assignment doesn't reach it.  Build a
+            # plain dict: cast floats to float16 on CPU first (Turing has no
+            # bfloat16 CUDA kernels), then move to the device one by one so
+            # any failure names the exact tensor.
+            # --- DEBUG: show raw processor output ---
+            print("=== PROCESSOR OUTPUT (multimodal) ===")
+            for k, v in raw_inputs.items():
+                if isinstance(v, torch.Tensor):
+                    print(f"  {k}: shape={tuple(v.shape)} dtype={v.dtype} device={v.device}")
+                else:
+                    print(f"  {k}: type={type(v)}")
+            # --- END DEBUG ---
+            inputs = {}
+            for k, v in raw_inputs.items():
+                if not isinstance(v, torch.Tensor):
+                    inputs[k] = v
+                    continue
+                try:
+                    if v.is_floating_point() and v.dtype != torch.float16:
+                        v = v.to(dtype=torch.float16)
+                    v = v.to(device=self._input_device)
+                except RuntimeError as _e:
+                    log.error(
+                        "Failed moving input '%s' (shape=%s dtype=%s) to %s: %s",
+                        k, tuple(v.shape), v.dtype, self._input_device, _e,
+                    )
+                    raise
+                inputs[k] = v
         else:
             # FIX #2: use the same two-step pattern as the multimodal path
             # (tokenize=False → get string → processor call) instead of
@@ -536,14 +595,40 @@ class GemmaChat:
                 text=prompt_text,
                 return_tensors="pt",
             )
-            inputs = {
-                k: (v.to(dtype=torch.float16).to(device=self._input_device)
-                    if isinstance(v, torch.Tensor) and v.is_floating_point()
-                    else v.to(device=self._input_device)
-                    if isinstance(v, torch.Tensor)
-                    else v)
-                for k, v in raw_inputs.items()
-            }
+            # --- DEBUG: show raw processor output ---
+            print("=== PROCESSOR OUTPUT (text-only) ===")
+            for k, v in raw_inputs.items():
+                if isinstance(v, torch.Tensor):
+                    print(f"  {k}: shape={tuple(v.shape)} dtype={v.dtype} device={v.device}")
+                else:
+                    print(f"  {k}: type={type(v)}")
+            # --- END DEBUG ---
+            inputs = {}
+            for k, v in raw_inputs.items():
+                if not isinstance(v, torch.Tensor):
+                    inputs[k] = v
+                    continue
+                try:
+                    if v.is_floating_point() and v.dtype != torch.float16:
+                        v = v.to(dtype=torch.float16)
+                    v = v.to(device=self._input_device)
+                except RuntimeError as _e:
+                    log.error(
+                        "Failed moving input '%s' (shape=%s dtype=%s) to %s: %s",
+                        k, tuple(v.shape), v.dtype, self._input_device, _e,
+                    )
+                    raise
+                inputs[k] = v
+
+        # --- DEBUG: show moved tensors and flush async CUDA errors ---
+        print("=== INPUTS AFTER MOVE TO DEVICE ===")
+        for k, v in inputs.items():
+            if isinstance(v, torch.Tensor):
+                print(f"  {k}: shape={tuple(v.shape)} dtype={v.dtype} device={v.device}")
+        if torch.cuda.is_available():
+            torch.cuda.synchronize(self._input_device)
+            print("=== CUDA SYNC OK (pre-generate) ===")
+        # --- END DEBUG ---
 
         input_len = inputs["input_ids"].shape[1]
         with torch.no_grad():
