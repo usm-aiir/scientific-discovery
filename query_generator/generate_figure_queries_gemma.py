@@ -413,15 +413,38 @@ class GemmaChat:
         # stores the quant-state dtype separately.  On Turing GPUs (compute
         # 7.5, e.g. RTX 2080 Ti) bfloat16 CUDA kernels are not supported, so
         # we cast the entire vision tower to float16 after loading.
-        try:
-            n_cast = 0
-            for module in self.model.modules():
-                if isinstance(module, torch.nn.LayerNorm):
-                    module.to(torch.float16)
-                    n_cast += 1
-            log.info("Cast %d LayerNorm layers to float16 (Turing GPU compatibility).", n_cast)
-        except Exception as exc:
-            log.warning("Could not cast LayerNorm layers to float16: %s", exc)
+        # Accelerate wraps each module's forward as new_forward and stashes the
+        # original as module._old_forward.  Its own pre_forward runs *inside*
+        # new_forward, so a PyTorch register_forward_pre_hook fires too early
+        # and gets undone.  Patching _old_forward directly puts the dtype cast
+        # after accelerate's device management and right before F.layer_norm —
+        # nothing can undo it at that point.  Fall back to register_forward_pre_hook
+        # for any LayerNorm that accelerate has not wrapped.
+        def _make_ln_forward(original_forward, ln_module):
+            def _forward(x):
+                return original_forward(x.to(ln_module.weight.dtype))
+            return _forward
+
+        n_patched = 0
+        for module in self.model.modules():
+            if not isinstance(module, torch.nn.LayerNorm):
+                continue
+            if hasattr(module, '_old_forward'):
+                # Accelerate-wrapped: patch the inner forward directly.
+                module._old_forward = _make_ln_forward(module._old_forward, module)
+            else:
+                # Not wrapped by accelerate: a pre-hook is sufficient.
+                def _ln_pre_hook(mod, args):
+                    return tuple(
+                        a.to(mod.weight.dtype) if isinstance(a, torch.Tensor) else a
+                        for a in args
+                    )
+                module.register_forward_pre_hook(_ln_pre_hook)
+            n_patched += 1
+        log.info(
+            "Applied dtype-cast fix to %d LayerNorm layers (Turing GPU compatibility).",
+            n_patched,
+        )
 
         log.info("Model loaded.")
 
