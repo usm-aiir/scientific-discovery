@@ -367,22 +367,22 @@ class GemmaChat:
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.bfloat16,
             )
+            # When using 4-bit quant, omit torch_dtype so non-quantized layers
+            # (LayerNorm, embeddings) stay in float32.  This avoids a dtype
+            # mismatch in the vision encoder where patch_ln1 expects float32
+            # input but receives bfloat16 when torch_dtype=bfloat16 is set.
+            dtype_kwargs = {}
+        else:
+            dtype_kwargs = {"torch_dtype": torch.bfloat16}
 
         self.processor = AutoProcessor.from_pretrained(model_name)
         self.model = AutoModelForImageTextToText.from_pretrained(
             model_name,
             device_map="auto",
-            torch_dtype=torch.bfloat16,
+            **dtype_kwargs,
             **quant_kwargs,
         )
         self.model.eval()
-        # With 4-bit quantization + accelerate device_map, activations flowing
-        # through the vision encoder are bfloat16, but LayerNorm weights stay
-        # float32 by default — causing a dtype mismatch.  Cast all LayerNorm
-        # modules to bfloat16 so they accept the activations accelerate sends.
-        for module in self.model.modules():
-            if isinstance(module, torch.nn.LayerNorm):
-                module.to(torch.bfloat16)
         log.info("Model loaded.")
 
     def chat(self, messages: list[dict], temperature: float = 0.7,
