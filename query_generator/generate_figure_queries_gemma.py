@@ -60,6 +60,8 @@ Example
         --target 200 --model_name google/gemma-4-31B-it
 """
 
+from __future__ import annotations  # FIX #8: enables str | None etc. on Python 3.9
+
 import argparse
 import json
 import logging
@@ -233,12 +235,8 @@ def attach_image_paths(df: pd.DataFrame, figures_dir: str) -> pd.DataFrame:
     """
     Add an 'image_path' column to df and drop rows whose image is not on disk.
     Logs how many rows were kept vs. dropped.
-
-    FIX #4: replaced slow df.iterrows() loop with vectorized .apply().
     """
     df = df.copy()
-    # FIX #4: .apply() is orders of magnitude faster than iterrows() for
-    # row-wise operations on large DataFrames.
     df["image_path"] = df.apply(
         lambda row: resolve_image_path(
             figures_dir, row["paper_id"], row["figure_id"], row["sub_id"]
@@ -305,9 +303,10 @@ def build_diverse_candidate_order(df: pd.DataFrame, target: int,
     picked_df = df.loc[one_per_paper]
 
     # Within each category, interleave figures across length buckets.
+    # FIX #9: replaced iterrows() with .items() on the category Series.
     by_category: dict[str, list] = defaultdict(list)
-    for idx, row in picked_df.iterrows():
-        by_category[row["primary_category"]].append(idx)
+    for idx, cat in picked_df["primary_category"].items():
+        by_category[cat].append(idx)
 
     for cat, idxs in by_category.items():
         by_len: dict[str, list] = defaultdict(list)
@@ -354,10 +353,6 @@ def _normalize_messages_for_template(messages: list[dict]) -> list[dict]:
     Ensure every message's content is in the typed-dict list format that
     Gemma 4's chat template expects, i.e.:
         {"role": "...", "content": [{"type": "text", "text": "..."}]}
-
-    FIX #3: previously the multimodal path converted system messages to list
-    format while the text-only path left them as plain strings, causing
-    inconsistent behaviour across chat-template implementations.
     """
     normalized = []
     for msg in messages:
@@ -385,10 +380,6 @@ class GemmaChat:
         self.max_new_tokens = max_new_tokens
         log.info("Loading model %s ...", model_name)
 
-        # RTX 2080 Ti (Turing, compute 7.5) does not support bfloat16 CUDA
-        # kernels — only Ampere (8.0+) does.  Use float16 everywhere instead.
-        # For non-4bit loads on newer hardware, bfloat16 is preferred but
-        # float16 is safe on all CUDA GPUs.
         quant_kwargs = {}
         if load_in_4bit:
             from transformers import BitsAndBytesConfig
@@ -407,11 +398,7 @@ class GemmaChat:
         self.model.eval()
 
         # With device_map="auto" the model may be split across multiple GPUs.
-        # input_ids must land on the embedding layer's device specifically —
-        # that is the first layer that consumes them.  Params4bit (bitsandbytes
-        # 4-bit) also sometimes reports its .device as CPU even when the actual
-        # computation runs on CUDA, so scanning raw parameters is unreliable.
-        # Instead, find the first Embedding module with a non-meta weight.
+        # Find the embedding layer's device so input_ids land on the right one.
         self._input_device = None
         for module in self.model.modules():
             if isinstance(module, torch.nn.Embedding):
@@ -420,7 +407,6 @@ class GemmaChat:
                     self._input_device = d
                     break
         if self._input_device is None:
-            # Fallback: first non-meta, non-cpu float parameter.
             for p in self.model.parameters():
                 if p.device.type not in ("meta", "cpu") and p.is_floating_point():
                     self._input_device = p.device
@@ -431,22 +417,7 @@ class GemmaChat:
             )
         log.info("Input device (embedding layer): %s", self._input_device)
 
-        # --- DEBUG: dump device map and first 10 parameter dtypes/devices ---
-        print("=== MODEL DEVICE MAP ===")
-        if hasattr(self.model, "hf_device_map"):
-            for layer, dev in self.model.hf_device_map.items():
-                print(f"  {layer}: {dev}")
-        else:
-            print("  (no hf_device_map)")
-        print("=== PARAMETER SAMPLE (first 10) ===")
-        for name, p in list(self.model.named_parameters())[:10]:
-            print(f"  {name}: device={p.device} dtype={p.dtype}")
-        print(f"=== _input_device = {self._input_device} ===")
-        # --- END DEBUG ---
-
-        # Flush any async CUDA errors that occurred during model loading so
-        # they surface here with a clear message rather than masquerading as
-        # a later .to() failure.
+        # Flush any async CUDA errors that occurred during model loading.
         if torch.cuda.is_available():
             try:
                 torch.cuda.synchronize(self._input_device)
@@ -458,20 +429,18 @@ class GemmaChat:
                 )
                 raise
 
-        # Gemma 4 vision encoder forward casts pixel_values to
-        # patch_dense.weight.dtype before passing them to patch_ln1.  With
-        # 4-bit quantisation on bitsandbytes, patch_dense.weight.dtype can
-        # still report bfloat16 even when torch_dtype=float16, because bnb
-        # stores the quant-state dtype separately.  On Turing GPUs (compute
-        # 7.5, e.g. RTX 2080 Ti) bfloat16 CUDA kernels are not supported, so
-        # we cast the entire vision tower to float16 after loading.
-        # Accelerate wraps each module's forward as new_forward and stashes the
-        # original as module._old_forward.  Its own pre_forward runs *inside*
-        # new_forward, so a PyTorch register_forward_pre_hook fires too early
-        # and gets undone.  Patching _old_forward directly puts the dtype cast
-        # after accelerate's device management and right before F.layer_norm —
-        # nothing can undo it at that point.  Fall back to register_forward_pre_hook
-        # for any LayerNorm that accelerate has not wrapped.
+        # Cast LayerNorm inputs to float16 for Turing GPU (compute 7.5) compatibility.
+        # Accelerate wraps each module's forward as new_forward; patching _old_forward
+        # puts the cast after accelerate's device management and before F.layer_norm.
+        # FIX #10: define _ln_pre_hook once outside the loop — it uses `mod` (the
+        # hook's own argument), not the loop variable, so one definition is correct
+        # for all LayerNorm modules.
+        def _ln_pre_hook(mod, args):
+            return tuple(
+                a.to(mod.weight.dtype) if isinstance(a, torch.Tensor) else a
+                for a in args
+            )
+
         def _make_ln_forward(original_forward, ln_module):
             def _forward(x):
                 return original_forward(x.to(ln_module.weight.dtype))
@@ -482,15 +451,8 @@ class GemmaChat:
             if not isinstance(module, torch.nn.LayerNorm):
                 continue
             if hasattr(module, '_old_forward'):
-                # Accelerate-wrapped: patch the inner forward directly.
                 module._old_forward = _make_ln_forward(module._old_forward, module)
             else:
-                # Not wrapped by accelerate: a pre-hook is sufficient.
-                def _ln_pre_hook(mod, args):
-                    return tuple(
-                        a.to(mod.weight.dtype) if isinstance(a, torch.Tensor) else a
-                        for a in args
-                    )
                 module.register_forward_pre_hook(_ln_pre_hook)
             n_patched += 1
         log.info(
@@ -511,15 +473,13 @@ class GemmaChat:
             Standard chat messages with "role" and "content" keys.  Content may
             be a plain string or a list of typed-dict parts.
         temperature : float
-            Sampling temperature.
+            Sampling temperature.  Pass 0.0 for greedy decoding.
         image : PIL.Image.Image or None
             When provided, the image is prepended to the first user turn as a
             visual input so the model can reason from the figure pixels.
         """
         import torch
 
-        # FIX #3: normalise all messages to typed-dict list format so both
-        # paths use the same representation when calling apply_chat_template.
         normalized = _normalize_messages_for_template(messages)
 
         if image is not None:
@@ -528,7 +488,6 @@ class GemmaChat:
             first_user_done = False
             for msg in normalized:
                 if msg["role"] == "user" and not first_user_done:
-                    # Prepend the image token before the text parts.
                     structured.append({
                         "role": "user",
                         "content": [{"type": "image"}] + msg["content"],
@@ -537,10 +496,6 @@ class GemmaChat:
                 else:
                     structured.append(msg)
 
-            # Two-step: render the prompt text first, then tokenize with image.
-            # Passing images= directly to apply_chat_template causes a
-            # "multiple values for keyword argument 'images'" conflict in some
-            # transformers versions; this pattern avoids it.
             prompt_text = self.processor.apply_chat_template(
                 structured,
                 add_generation_prompt=True,
@@ -551,41 +506,7 @@ class GemmaChat:
                 images=[image],
                 return_tensors="pt",
             )
-            # BatchFeature.to() iterates self.data, separate from the dict
-            # layer, so in-place key assignment doesn't reach it.  Build a
-            # plain dict: cast floats to float16 on CPU first (Turing has no
-            # bfloat16 CUDA kernels), then move to the device one by one so
-            # any failure names the exact tensor.
-            # --- DEBUG: show raw processor output ---
-            print("=== PROCESSOR OUTPUT (multimodal) ===")
-            for k, v in raw_inputs.items():
-                if isinstance(v, torch.Tensor):
-                    print(f"  {k}: shape={tuple(v.shape)} dtype={v.dtype} device={v.device}")
-                else:
-                    print(f"  {k}: type={type(v)}")
-            # --- END DEBUG ---
-            inputs = {}
-            for k, v in raw_inputs.items():
-                if not isinstance(v, torch.Tensor):
-                    inputs[k] = v
-                    continue
-                try:
-                    if v.is_floating_point() and v.dtype != torch.float16:
-                        v = v.to(dtype=torch.float16)
-                    v = v.to(device=self._input_device)
-                except RuntimeError as _e:
-                    log.error(
-                        "Failed moving input '%s' (shape=%s dtype=%s) to %s: %s",
-                        k, tuple(v.shape), v.dtype, self._input_device, _e,
-                    )
-                    raise
-                inputs[k] = v
         else:
-            # FIX #2: use the same two-step pattern as the multimodal path
-            # (tokenize=False → get string → processor call) instead of
-            # apply_chat_template(..., tokenize=True, return_dict=True).
-            # The return_dict parameter was only added in transformers 4.43,
-            # so the old single-step call raised TypeError on older versions.
             prompt_text = self.processor.apply_chat_template(
                 normalized,
                 add_generation_prompt=True,
@@ -595,50 +516,42 @@ class GemmaChat:
                 text=prompt_text,
                 return_tensors="pt",
             )
-            # --- DEBUG: show raw processor output ---
-            print("=== PROCESSOR OUTPUT (text-only) ===")
-            for k, v in raw_inputs.items():
-                if isinstance(v, torch.Tensor):
-                    print(f"  {k}: shape={tuple(v.shape)} dtype={v.dtype} device={v.device}")
-                else:
-                    print(f"  {k}: type={type(v)}")
-            # --- END DEBUG ---
-            inputs = {}
-            for k, v in raw_inputs.items():
-                if not isinstance(v, torch.Tensor):
-                    inputs[k] = v
-                    continue
-                try:
-                    if v.is_floating_point() and v.dtype != torch.float16:
-                        v = v.to(dtype=torch.float16)
-                    v = v.to(device=self._input_device)
-                except RuntimeError as _e:
-                    log.error(
-                        "Failed moving input '%s' (shape=%s dtype=%s) to %s: %s",
-                        k, tuple(v.shape), v.dtype, self._input_device, _e,
-                    )
-                    raise
-                inputs[k] = v
 
-        # --- DEBUG: show moved tensors and flush async CUDA errors ---
-        print("=== INPUTS AFTER MOVE TO DEVICE ===")
-        for k, v in inputs.items():
-            if isinstance(v, torch.Tensor):
-                print(f"  {k}: shape={tuple(v.shape)} dtype={v.dtype} device={v.device}")
-        if torch.cuda.is_available():
-            torch.cuda.synchronize(self._input_device)
-            print("=== CUDA SYNC OK (pre-generate) ===")
-        # --- END DEBUG ---
+        # Move tensors to the embedding layer's device; cast floats to float16
+        # (Turing GPUs have no bfloat16 CUDA kernels).
+        inputs = {}
+        for k, v in raw_inputs.items():
+            if not isinstance(v, torch.Tensor):
+                inputs[k] = v
+                continue
+            try:
+                if v.is_floating_point() and v.dtype != torch.float16:
+                    v = v.to(dtype=torch.float16)
+                v = v.to(device=self._input_device)
+            except RuntimeError as _e:
+                log.error(
+                    "Failed moving input '%s' (shape=%s dtype=%s) to %s: %s",
+                    k, tuple(v.shape), v.dtype, self._input_device, _e,
+                )
+                raise
+            inputs[k] = v
 
         input_len = inputs["input_ids"].shape[1]
+
+        # FIX #11: only pass temperature/top_p when actually sampling.
+        # Passing them with do_sample=False raises ValueError in transformers >= 4.46.
+        do_sample = temperature > 0
+        gen_kwargs: dict = dict(
+            max_new_tokens=self.max_new_tokens,
+            do_sample=do_sample,
+        )
+        if do_sample:
+            gen_kwargs["temperature"] = temperature
+            gen_kwargs["top_p"] = 0.9
+
         with torch.no_grad():
-            out = self.model.generate(
-                **inputs,
-                max_new_tokens=self.max_new_tokens,
-                do_sample=temperature > 0,
-                temperature=max(temperature, 1e-4),
-                top_p=0.9,
-            )
+            out = self.model.generate(**inputs, **gen_kwargs)
+
         gen_tokens = out[0][input_len:]
         return self.processor.decode(gen_tokens, skip_special_tokens=True).strip()
 
@@ -650,16 +563,10 @@ class GemmaChat:
 def extract_json(text: str) -> dict | None:
     """
     Pull the first {...} JSON object out of a model response, or return None.
-
-    FIX #7: use a non-greedy quantifier and json.JSONDecoder.raw_decode so
-    that spurious braces in surrounding text do not cause the regex to
-    over-match and swallow content past the closing brace of the JSON object.
     """
     text = re.sub(r"^```(json)?", "", text.strip()).strip()
     text = re.sub(r"```$", "", text).strip()
 
-    # Find the first '{' and attempt to parse a complete JSON object from
-    # that position; raw_decode stops at the first complete object.
     start = text.find("{")
     if start == -1:
         return None
@@ -676,7 +583,8 @@ def figure_context_block(row: pd.Series) -> str:
     """Format a figure's metadata into the context block shown to both agents."""
     abstract = row.get("abstract", "")
     if len(abstract) > ABSTRACT_MAX_CHARS:
-        abstract = abstract[:ABSTRACT_MAX_CHARS] + " ..."
+        cut = abstract.rfind(" ", 0, ABSTRACT_MAX_CHARS)
+        abstract = abstract[: cut if cut != -1 else ABSTRACT_MAX_CHARS] + " ..."
 
     sub_label = f" (sub-figure {row['sub_id']})" if row["sub_id"] else ""
     ref_text  = row["reference_text"] or "(none found)"
@@ -707,7 +615,6 @@ def run_agent1(chat: GemmaChat, row: pd.Series,
     """
     from PIL import Image as PILImage
 
-    # Load the figure image so Agent 1 can see the actual visual content.
     image = None
     image_path = row.get("image_path", "")
     if image_path and os.path.isfile(str(image_path)):
@@ -720,7 +627,6 @@ def run_agent1(chat: GemmaChat, row: pd.Series,
     user_msg = f"Figure information:\n{context}\n\nProduce the JSON now."
 
     if feedback:
-        # Include whatever context we have from the prior attempt.
         prior_note = f'Your previous attempt: "{prior_query}"\n' if prior_query else ""
         user_msg = (
             f"Figure information:\n{context}\n\n"
@@ -740,14 +646,12 @@ def run_agent1(chat: GemmaChat, row: pd.Series,
 
     query = str(parsed["query"]).strip()
 
-    # Catch any placeholder text that was never filled in (e.g. "<the query text>").
     if re.search(r"<[^>]{1,60}>", query):
         log.warning(
             "Agent 1 produced a placeholder-style query %r — treating as parse failure.", query
         )
         return None
 
-    # Remove any accidental "Figure X" references that would violate the benchmark rules.
     query = re.sub(r"(?i)\b(fig(ure)?\.?\s*[0-9a-z]+)\b", "", query)
     query = re.sub(r"\s+", " ", query).strip()
     return query or None
@@ -819,10 +723,6 @@ def load_already_done(output_tsv: str) -> set[str]:
     """
     Return the set of paper IDs that already have an accepted query in the
     output TSV (used to safely resume an interrupted run).
-
-    FIX #5: exceptions are now logged as warnings instead of being silently
-    swallowed, so a corrupt output file does not cause a silent restart that
-    duplicates work without any indication of what went wrong.
     """
     done: set[str] = set()
     if os.path.isfile(output_tsv):
@@ -916,9 +816,6 @@ def main() -> None:
 
     chat = GemmaChat(args.model_name, load_in_4bit=args.load_in_4bit)
 
-    # FIX #1: use a context manager so the file handle is always closed
-    # (and buffered writes flushed) even when an exception propagates out
-    # of the loop — e.g. model error, disk full, or KeyboardInterrupt.
     with open(args.output_tsv, "a", encoding="utf-8") as out_f:
         if write_header:
             out_f.write("paper_id\tfigure_id\tsub_id\tquery\n")
@@ -932,8 +829,6 @@ def main() -> None:
                 continue
 
             n_attempted += 1
-            # FIX #6: log figure_id and sub_id with an explicit "sub=" label
-            # so they are not silently concatenated into a single token.
             log.info(
                 "[%d/%d accepted | %d attempted | %d skipped] paper=%s figure=%s sub=%s",
                 n_accepted, args.target, n_attempted, n_skipped,
@@ -954,7 +849,6 @@ def main() -> None:
                 log.info("  -> SKIPPED after %d rounds.", args.max_rounds)
                 continue
 
-            # Strip tabs and newlines so the TSV stays well-formed.
             clean_query = re.sub(r"\s+", " ", query).strip().replace("\t", " ")
             out_f.write(f"{row['paper_id']}\t{row['figure_id']}\t{row['sub_id']}\t{clean_query}\n")
             out_f.flush()
