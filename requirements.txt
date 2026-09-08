@@ -4,7 +4,5 @@ numpy
 pandas
 Pillow
 requests
-torch
-torchvision
 transformers>=4.51.0
 bitsandbytes>=0.46.1
