@@ -42,12 +42,26 @@ if [ -z "$PYTHON" ]; then
     exit 1
 fi
 
+CAPTIONS_TSV="$1"
+METADATA_TSV="$2"
+REF_TSV="$3"
+FIGURES_DIR="$4"
+shift 4
+
+# If the next arg exists and does NOT start with --, treat it as output_tsv.
+if [[ -n "$1" && "$1" != --* ]]; then
+    OUTPUT_TSV="$1"
+    shift
+else
+    OUTPUT_TSV="queries_output.tsv"
+fi
+
 echo "[ Running figure query generation (Gemma) ]"
 "$PYTHON" query_generator/generate_figure_queries_gemma.py \
-    --captions_tsv "$1" \
-    --metadata_tsv "$2" \
-    --ref_tsv      "$3" \
-    --figures_dir  "$4" \
-    --output_tsv   "${5:-queries_output.tsv}" \
-    "${@:6}"
+    --captions_tsv "$CAPTIONS_TSV" \
+    --metadata_tsv "$METADATA_TSV" \
+    --ref_tsv      "$REF_TSV" \
+    --figures_dir  "$FIGURES_DIR" \
+    --output_tsv   "$OUTPUT_TSV" \
+    "$@"
 echo "Query generation complete."
