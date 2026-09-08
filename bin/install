@@ -7,12 +7,12 @@
 # Sets up Miniconda (if needed), the Conda environment, and
 # installs all required libraries.
 ################################################################
- 
+
 mymsg () {
     echo "    >> $@"
     echo ""
 }
- 
+
 testSuccess () {
     if [ $? -ne 0 ]
     then
@@ -29,39 +29,53 @@ testSuccess () {
         mymsg $2
     fi
 }
- 
+
 pip_install () {
     # Use the correct pip path for Windows (Scripts/) vs Linux/Mac (bin/)
     ENV_PATH=$(conda info --envs | grep "^scidiscovery" | awk '{print $NF}')
     if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
-        "$ENV_PATH/Scripts/pip" install -r requirements.txt
+        PIP="$ENV_PATH/Scripts/pip"
     else
-        "$ENV_PATH/bin/pip" install -r requirements.txt
+        PIP="$ENV_PATH/bin/pip"
     fi
+
+    # Install PyTorch with CUDA support if a GPU is available, otherwise CPU-only
+    echo ""
+    echo "[ Installing PyTorch ]"
+    if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+        echo "GPU detected — installing PyTorch with CUDA 12.4 support."
+        "$PIP" install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+    else
+        echo "No GPU detected — installing CPU-only PyTorch."
+        "$PIP" install torch torchvision
+    fi
+
+    # Install remaining dependencies
+    echo ""
+    echo "[ Installing remaining dependencies ]"
+    "$PIP" install -r requirements.txt
 }
- 
+
 ################################################################
 # Main Script
 ################################################################
- 
+
 echo "Scientific Discovery Installation Script"
 echo "-------------------------------------"
- 
+
 if [ $# -gt 0 ]
 then
     echo "** Force mode: will continue after errors ** (argument passed)"
 fi
- 
+
 ##################################
 # Install Miniconda if needed
 ##################################
- 
+
 echo ""
 echo "[ Checking for Conda ]"
 
-
-if ! command -v conda &> /dev/null && [ ! -d "$HOME/miniconda3" ]
-
+if ! command -v conda &> /dev/null
 then
     echo "Conda not found. Installing Miniconda..."
     OS="$(uname -s)"
@@ -89,24 +103,23 @@ then
     $HOME/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
     mymsg "Anaconda Terms of Service accepted."
 else
-    eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
     mymsg "Conda already installed."
 fi
- 
+
 ##################################
 # Set up Conda environment
 ##################################
- 
+
 echo ""
 echo "[ Creating Conda Python Environment (scidiscovery) ]"
- 
+
 # Use user-writable package cache to avoid permission errors on shared systems
 mkdir -p $HOME/.conda/pkgs
 export CONDA_PKGS_DIRS=$HOME/.conda/pkgs
- 
+
 # Source conda so 'conda activate' works inside this script
 source "$(conda info --base)/etc/profile.d/conda.sh"
- 
+
 CENV=`conda info --envs`
 if grep -w "scidiscovery" <<< "$CENV"
 then
@@ -121,11 +134,11 @@ else
     pip_install
     testSuccess $# "Required libraries installed successfully."
 fi
- 
+
 ##################################
 # Finish
 ##################################
- 
+
 echo "Installation complete!"
 echo ""
 echo "To scrape arXiv figures and metadata, run:"
@@ -133,4 +146,3 @@ echo ""
 echo "    bin/run_figure_scrape <year> <month>"
 echo ""
 echo "Example: bin/run_figure_scrape 24 10"
- 
