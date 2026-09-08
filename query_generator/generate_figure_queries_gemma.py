@@ -508,7 +508,17 @@ class GemmaChat:
                 text=prompt_text,
                 images=[image],
                 return_tensors="pt",
-            ).to(self._input_device)
+            )
+            # Cast floating-point tensors to float16 on CPU *before* moving to
+            # the GPU.  On Turing (compute 7.5, e.g. RTX 2080 Ti) the bfloat16
+            # CUDA kernels don't exist, so placing a bfloat16 tensor on the
+            # device triggers a device-side assert.  Casting here (on CPU) is
+            # safe — CPU has no dtype restrictions — and avoids the GPU error.
+            for key in list(inputs.keys()):
+                t = inputs[key]
+                if isinstance(t, torch.Tensor) and t.is_floating_point() and t.dtype != torch.float16:
+                    inputs[key] = t.to(torch.float16)
+            inputs = inputs.to(self._input_device)
         else:
             # FIX #2: use the same two-step pattern as the multimodal path
             # (tokenize=False → get string → processor call) instead of
