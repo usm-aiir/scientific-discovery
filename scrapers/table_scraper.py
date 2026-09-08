@@ -809,8 +809,9 @@ def _parse_categories(paper_id: str) -> list[str]:
         if resp.status_code == 200:
             root = ET.fromstring(resp.content)
             for tag in root.findall(".//{http://www.w3.org/2005/Atom}category"):
-                term = tag.get("term", "")
-                if "." in term and term not in categories:
+                term   = tag.get("term", "")
+                scheme = tag.get("scheme", "")
+                if term and scheme == "http://arxiv.org/schemas/atom" and term not in categories:
                     categories.append(term)
     except Exception as exc:
         log.warning("arXiv API category lookup failed for %s: %s", paper_id, exc)
