@@ -37,14 +37,11 @@ YEAR=$1
 MONTH=$2
 shift 2
 
-EXTRA_ARGS="$@"
-
-PYTHON=$(conda run -n scidiscovery which python3 2>/dev/null)
-if [ -z "$PYTHON" ]; then
+if ! conda env list | grep -qw "scidiscovery"; then
     echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
 
 echo "[ Running arXiv figure scraper for $YEAR/$MONTH ]"
-"$PYTHON" scrapers/figure_scraper.py "$YEAR" "$MONTH" $EXTRA_ARGS
+conda run -n scidiscovery python3 scrapers/figure_scraper.py "$YEAR" "$MONTH" "$@"
 echo "Scrape complete."
