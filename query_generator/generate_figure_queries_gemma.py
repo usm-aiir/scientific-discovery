@@ -436,8 +436,6 @@ class GemmaChat:
         # hook's own argument), not the loop variable, so one definition is correct
         # for all LayerNorm modules.
         def _ln_pre_hook(mod, args):
-            if mod.weight is None:
-                return args
             return tuple(
                 a.to(mod.weight.dtype) if isinstance(a, torch.Tensor) else a
                 for a in args
@@ -452,8 +450,6 @@ class GemmaChat:
         for module in self.model.modules():
             if not isinstance(module, torch.nn.LayerNorm):
                 continue
-            if module.weight is None:
-                continue  # elementwise_affine=False — no dtype to match
             if hasattr(module, '_old_forward'):
                 module._old_forward = _make_ln_forward(module._old_forward, module)
             else:
