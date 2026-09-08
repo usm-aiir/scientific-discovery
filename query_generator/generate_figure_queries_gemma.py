@@ -438,6 +438,10 @@ class GemmaChat:
                 images=[image],
                 return_tensors="pt",
             ).to(self.model.device)
+            # Vision encoder LayerNorm expects float32; cast pixel_values
+            # explicitly since .to(device) may promote them to bfloat16.
+            if "pixel_values" in inputs:
+                inputs["pixel_values"] = inputs["pixel_values"].to(torch.float32)
         else:
             # Text-only path (used by Agent 2, which does not need the image).
             inputs = self.processor.apply_chat_template(
