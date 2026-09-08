@@ -9,19 +9,21 @@
 usage() {
     echo "Generates figure search queries using a local Gemma model."
     echo ""
-    echo "usage: $0 <captions_tsv> <metadata_tsv> <ref_tsv> <figures_dir> [output_tsv]"
+    echo "usage: $0 <captions_tsv> <metadata_tsv> <ref_tsv> <figures_dir> [output_tsv] [--load_in_4bit] [--model_name NAME]"
     echo ""
     echo "  captions_tsv   Path to captions TSV    (e.g. arxiv_data/captions/24_10.tsv)"
     echo "  metadata_tsv   Path to metadata TSV    (e.g. arxiv_data/metadata_24_10.tsv)"
     echo "  ref_tsv        Path to references TSV  (e.g. arxiv_data/references/ref_24_10.tsv)"
     echo "  figures_dir    Path to figures root dir (e.g. arxiv_data/figures)"
     echo "  output_tsv     Output file path         (default: queries_output.tsv)"
+    echo "  --load_in_4bit Load model in 4-bit quantization (lower memory, requires GPU)"
+    echo "  --model_name   HuggingFace model name   (default: google/gemma-4-31B-it)"
     echo ""
     echo "Examples:"
     echo "  $0 arxiv_data/captions/24_10.tsv arxiv_data/metadata_24_10.tsv \\"
     echo "     arxiv_data/references/ref_24_10.tsv arxiv_data/figures"
     echo "  $0 arxiv_data/captions/24_10.tsv arxiv_data/metadata_24_10.tsv \\"
-    echo "     arxiv_data/references/ref_24_10.tsv arxiv_data/figures queries_200.tsv"
+    echo "     arxiv_data/references/ref_24_10.tsv arxiv_data/figures queries_200.tsv --load_in_4bit"
 }
 
 if [[ $1 == "--help" || $1 == "-h" ]]; then
@@ -46,5 +48,6 @@ echo "[ Running figure query generation (Gemma) ]"
     --metadata_tsv "$2" \
     --ref_tsv      "$3" \
     --figures_dir  "$4" \
-    --output_tsv   "${5:-queries_output.tsv}"
+    --output_tsv   "${5:-queries_output.tsv}" \
+    "${@:6}"
 echo "Query generation complete."
