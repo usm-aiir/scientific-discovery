@@ -360,43 +360,40 @@ class GemmaChat:
         self.max_new_tokens = max_new_tokens
         log.info("Loading model %s ...", model_name)
 
+        # RTX 2080 Ti (Turing, compute 7.5) does not support bfloat16 CUDA
+        # kernels — only Ampere (8.0+) does.  Use float16 everywhere instead.
+        # For non-4bit loads on newer hardware, bfloat16 is preferred but
+        # float16 is safe on all CUDA GPUs.
         quant_kwargs = {}
         if load_in_4bit:
             from transformers import BitsAndBytesConfig
             quant_kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True,
-                # Use float32 compute dtype so activations stay float32
-                # throughout the model.  bfloat16 causes a dtype mismatch in
-                # Gemma 4's vision encoder (patch_ln1 expects float32 weights
-                # but receives bfloat16 inputs when compute_dtype=bfloat16).
-                bnb_4bit_compute_dtype=torch.float32,
+                bnb_4bit_compute_dtype=torch.float16,
             )
-            dtype_kwargs = {}
-        else:
-            dtype_kwargs = {"torch_dtype": torch.bfloat16}
 
         self.processor = AutoProcessor.from_pretrained(model_name)
         self.model = AutoModelForImageTextToText.from_pretrained(
             model_name,
             device_map="auto",
-            **dtype_kwargs,
+            torch_dtype=torch.float16,
             **quant_kwargs,
         )
         self.model.eval()
 
-        # The vision encoder casts pixel_values to patch_dense.weight.dtype
-        # (bfloat16) before passing them to patch_ln1.  If patch_ln1's weights
-        # are float32 (their default from the checkpoint), F.layer_norm fails.
-        # Fix: cast the weights of the affected vision norm layers to bfloat16
-        # by modifying .data directly, which is not intercepted by accelerate.
-        _vision_norms = {"patch_ln1", "patch_ln2", "pos_norm"}
-        for name, module in self.model.named_modules():
-            if name.split(".")[-1] in _vision_norms:
-                if hasattr(module, "weight") and module.weight is not None:
-                    module.weight.data = module.weight.data.to(torch.bfloat16)
-                if hasattr(module, "bias") and module.bias is not None:
-                    module.bias.data = module.bias.data.to(torch.bfloat16)
-                log.info("Cast %s weights to bfloat16.", name)
+        # Gemma 4 vision encoder forward casts pixel_values to
+        # patch_dense.weight.dtype before passing them to patch_ln1.  With
+        # 4-bit quantisation on bitsandbytes, patch_dense.weight.dtype can
+        # still report bfloat16 even when torch_dtype=float16, because bnb
+        # stores the quant-state dtype separately.  On Turing GPUs (compute
+        # 7.5, e.g. RTX 2080 Ti) bfloat16 CUDA kernels are not supported, so
+        # we cast the entire vision tower to float16 after loading.
+        try:
+            vision_tower = self.model.model.vision_tower
+            vision_tower.to(torch.float16)
+            log.info("Vision tower cast to float16 (Turing GPU compatibility).")
+        except AttributeError:
+            log.warning("Could not find vision_tower to cast — skipping.")
 
         log.info("Model loaded.")
 
