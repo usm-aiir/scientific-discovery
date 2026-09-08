@@ -24,14 +24,13 @@ if [[ $1 == "--help" || $1 == "-h" ]]; then
     exit 0
 fi
 
-PYTHON=$(conda run -n scidiscovery which python3 2>/dev/null)
-if [ -z "$PYTHON" ]; then
+if ! conda env list | grep -qw "scidiscovery"; then
     echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
 
 echo "[ Running table sampler ]"
-"$PYTHON" query_generator/table_sampler.py \
+conda run -n scidiscovery python3 query_generator/table_sampler.py \
     "${1:-arxiv_data}" \
     "${2:-sampled_tables.tsv}"
 echo "Sampling complete."

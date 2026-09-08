@@ -36,8 +36,7 @@ if [ $# -lt 4 ]; then
     exit 1
 fi
 
-PYTHON=$(conda run -n scidiscovery which python3 2>/dev/null)
-if [ -z "$PYTHON" ]; then
+if ! conda env list | grep -qw "scidiscovery"; then
     echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
@@ -57,7 +56,7 @@ else
 fi
 
 echo "[ Running figure query generation (Gemma) ]"
-"$PYTHON" query_generator/generate_figure_queries_gemma.py \
+conda run -n scidiscovery python3 query_generator/generate_figure_queries_gemma.py \
     --captions_tsv "$CAPTIONS_TSV" \
     --metadata_tsv "$METADATA_TSV" \
     --ref_tsv      "$REF_TSV" \
