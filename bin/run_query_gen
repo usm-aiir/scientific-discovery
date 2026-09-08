@@ -36,7 +36,16 @@ if [ $# -lt 4 ]; then
     exit 1
 fi
 
-if ! conda env list | grep -qw "scidiscovery"; then
+if command -v conda &> /dev/null; then
+    CONDA_CMD="conda"
+elif [ -f "$HOME/miniconda3/bin/conda" ]; then
+    CONDA_CMD="$HOME/miniconda3/bin/conda"
+else
+    echo "Error: conda not found. Run 'bash bin/install' first."
+    exit 1
+fi
+
+if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
     echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
@@ -47,7 +56,6 @@ REF_TSV="$3"
 FIGURES_DIR="$4"
 shift 4
 
-# If the next arg exists and does NOT start with --, treat it as output_tsv.
 if [[ -n "$1" && "$1" != --* ]]; then
     OUTPUT_TSV="$1"
     shift
@@ -56,7 +64,7 @@ else
 fi
 
 echo "[ Running figure query generation (Gemma) ]"
-conda run -n scidiscovery python3 query_generator/generate_figure_queries_gemma.py \
+"$CONDA_CMD" run -n scidiscovery python3 query_generator/generate_figure_queries_gemma.py \
     --captions_tsv "$CAPTIONS_TSV" \
     --metadata_tsv "$METADATA_TSV" \
     --ref_tsv      "$REF_TSV" \
