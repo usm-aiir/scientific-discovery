@@ -424,13 +424,19 @@ class GemmaChat:
                 else:
                     structured.append(msg)
 
-            inputs = self.processor.apply_chat_template(
+            # Two-step: render the prompt text first, then tokenize with image.
+            # Passing images= directly to apply_chat_template causes a
+            # "multiple values for keyword argument 'images'" conflict in some
+            # transformers versions; this pattern avoids it.
+            prompt_text = self.processor.apply_chat_template(
                 structured,
+                add_generation_prompt=True,
+                tokenize=False,
+            )
+            inputs = self.processor(
+                text=prompt_text,
                 images=[image],
                 return_tensors="pt",
-                return_dict=True,
-                add_generation_prompt=True,
-                tokenize=True,
             ).to(self.model.device)
         else:
             # Text-only path (used by Agent 2, which does not need the image).
