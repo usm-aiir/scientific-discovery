@@ -31,12 +31,11 @@ testSuccess () {
 }
 
 pip_install () {
-    # Use the correct pip path for Windows (Scripts/) vs Linux/Mac (bin/)
-    ENV_PATH=$(conda info --envs | grep "^scidiscovery" | awk '{print $NF}')
+    # $CONDA_PREFIX is set by 'conda activate' to the active environment's path
     if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
-        PIP="$ENV_PATH/Scripts/pip"
+        PIP="$CONDA_PREFIX/Scripts/pip"
     else
-        PIP="$ENV_PATH/bin/pip"
+        PIP="$CONDA_PREFIX/bin/pip"
     fi
 
     # Install PyTorch with CUDA support if a GPU is available, otherwise CPU-only
@@ -75,8 +74,23 @@ fi
 echo ""
 echo "[ Checking for Conda ]"
 
-if ! command -v conda &> /dev/null
-then
+if command -v conda &> /dev/null; then
+    mymsg "Conda already installed."
+elif [ -f "$HOME/miniconda3/bin/conda" ]; then
+    echo "Miniconda found at $HOME/miniconda3 but not in PATH — initializing..."
+    eval "$($HOME/miniconda3/bin/conda shell.bash hook)"
+    testSuccess $# "Conda initialized successfully."
+    $HOME/miniconda3/bin/conda init bash
+    testSuccess $# "Conda initialized for bash (future sessions)."
+    if [ "$(uname -s)" == "Darwin" ]; then
+        $HOME/miniconda3/bin/conda init zsh
+        testSuccess $# "Conda initialized for zsh (future sessions)."
+    fi
+    echo "  NOTE: Open a new terminal (or run 'source ~/.bashrc') for conda"
+    echo "        to be available in future sessions."
+    echo ""
+    mymsg "Conda initialized successfully."
+else
     echo "Conda not found. Installing Miniconda..."
     OS="$(uname -s)"
     ARCH="$(uname -m)"
@@ -102,8 +116,15 @@ then
     $HOME/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
     $HOME/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
     mymsg "Anaconda Terms of Service accepted."
-else
-    mymsg "Conda already installed."
+    $HOME/miniconda3/bin/conda init bash
+    testSuccess $# "Conda initialized for bash (future sessions)."
+    if [ "$OS" == "Darwin" ]; then
+        $HOME/miniconda3/bin/conda init zsh
+        testSuccess $# "Conda initialized for zsh (future sessions)."
+    fi
+    echo "  NOTE: Open a new terminal (or run 'source ~/.bashrc') for conda"
+    echo "        to be available in future sessions."
+    echo ""
 fi
 
 ##################################
