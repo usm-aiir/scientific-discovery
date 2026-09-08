@@ -383,6 +383,33 @@ class GemmaChat:
             **quant_kwargs,
         )
         self.model.eval()
+
+        # Gemma 4's vision encoder (patch_ln1) has float32 LayerNorm weights
+        # but receives bfloat16 activations when the model runs with mixed
+        # precision.  Register a forward pre-hook on any module that owns
+        # patch_ln1 so pixel_values are cast to float32 right before that call,
+        # after accelerate has finished moving tensors to the device.
+        def _cast_pixels_to_float32(module, args, kwargs):
+            new_args = tuple(
+                a.float() if isinstance(a, torch.Tensor) and a.is_floating_point() else a
+                for a in args
+            )
+            new_kwargs = {
+                k: v.float() if isinstance(v, torch.Tensor) and v.is_floating_point() else v
+                for k, v in kwargs.items()
+            }
+            return new_args, new_kwargs
+
+        hooked = False
+        for name, module in self.model.named_modules():
+            if hasattr(module, "patch_ln1"):
+                module.register_forward_pre_hook(_cast_pixels_to_float32, with_kwargs=True)
+                log.info("Registered float32 pre-hook on vision encoder: %s", name)
+                hooked = True
+                break
+        if not hooked:
+            log.warning("Could not find vision encoder module to register float32 hook.")
+
         log.info("Model loaded.")
 
     def chat(self, messages: list[dict], temperature: float = 0.7,
