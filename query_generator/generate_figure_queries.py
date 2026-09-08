@@ -29,11 +29,12 @@ Pipeline
 
 Note on image usage
 -------------------
-Image paths are resolved and used as a quality filter (figures with no
-image on disk are dropped). The agents themselves are text-only (Gemma
-does not have vision), so they work from the caption, abstract, and
-in-text references rather than the image pixels. Queries are grounded
-in the textual description of the figure rather than its visual content.
+Agent 1 (the Author) receives the actual figure image alongside the
+caption, abstract, and in-text references so that its queries are
+grounded in what the figure *shows*, not just its textual description.
+Agent 2 (the Reviewer) operates text-only — it has enough context from
+the caption and abstract to judge whether a query is answerable from
+the figure without needing the pixels itself.
 
 Output TSV columns
 ------------------
@@ -88,12 +89,12 @@ DEFAULT_SEED            = 13
 DEFAULT_MODEL           = "google/gemma-4-31B-it"
 
 # GemmaChat generation settings
-MAX_NEW_TOKENS     = 400
+MAX_NEW_TOKENS     = 150
 AGENT1_TEMPERATURE = 0.8   # higher for creative query drafting
-AGENT2_TEMPERATURE = 0.3   # lower for consistent accept/reject decisions
+AGENT2_TEMPERATURE = 0.0   # greedy — Agent 2 is binary accept/reject, no benefit from sampling
 
 # Figure context construction
-ABSTRACT_MAX_CHARS = 1500  # truncate abstracts beyond this to save tokens
+ABSTRACT_MAX_CHARS = 600   # truncate abstracts beyond this to save tokens
 
 # Caption-length bucket thresholds (in words)
 CAPTION_SHORT_MAX  = 20
@@ -101,10 +102,11 @@ CAPTION_MEDIUM_MAX = 60
 
 # Agent system prompts
 AGENT1_SYSTEM = """You are simulating a working scientist who has just come \
-across a figure in a paper (via its caption, sub-caption, abstract, and how \
-other papers cite it). Your job is to produce ONE realistic information need \
-this scientist would have -- a natural-language query that can be answered by \
-LOOKING AT THE FIGURE ITSELF (not by reading the rest of the paper).
+across a figure in a paper. You are shown the actual figure image alongside \
+its caption, sub-caption, abstract, and how other parts of the text cite it. \
+Your job is to produce ONE realistic information need this scientist would \
+have -- a natural-language query that can be answered by LOOKING AT THE \
+FIGURE ITSELF (not by reading the rest of the paper).
 
 Important constraints:
 - Do NOT refer to the figure by its number or say "in the figure" or \
@@ -118,12 +120,15 @@ the context provided.
 conversation or search.
 
 Good examples:
-- "What is the trend of training loss for the proposed method compared to the \
-baseline over epochs?"
-- "Which of the three mechanisms produces the highest output under low capital \
-levels?"
+- "What is the trend of training loss for the proposed method compared to the baseline over epochs?"
+- "Which of the three mechanisms produces the highest output under low capital levels?"
 
-Respond with ONLY a JSON object: {"query": "<the query text>"}"""
+Respond with ONLY a JSON object with a single key "query" whose value is your \
+question. Do not include any other text, explanation, or formatting outside \
+the JSON object.
+
+Example of the required format:
+{"query": "How does accuracy change as the number of training samples increases for each model?"}"""
 
 AGENT2_SYSTEM = """You are a careful peer reviewer checking whether a proposed \
 query is a good fit for a figure-grounded question-answering benchmark. ACCEPT \
@@ -339,12 +344,18 @@ def build_diverse_candidate_order(df: pd.DataFrame, target: int,
 # ---------------------------------------------------------------------------
 
 class GemmaChat:
-    """Thin wrapper around a local HuggingFace causal LM used as a chat model."""
+    """
+    Thin wrapper around a local HuggingFace vision-language model (Gemma 4).
+
+    Uses AutoProcessor (which bundles the tokenizer and image processor) and
+    AutoModelForImageTextToText so that figure images can be passed directly
+    to Agent 1 alongside the textual context.
+    """
 
     def __init__(self, model_name: str, load_in_4bit: bool = False,
                  max_new_tokens: int = MAX_NEW_TOKENS):
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoModelForImageTextToText, AutoProcessor
 
         self.max_new_tokens = max_new_tokens
         log.info("Loading model %s ...", model_name)
@@ -357,8 +368,8 @@ class GemmaChat:
                 bnb_4bit_compute_dtype=torch.bfloat16,
             )
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(
+        self.processor = AutoProcessor.from_pretrained(model_name)
+        self.model = AutoModelForImageTextToText.from_pretrained(
             model_name,
             device_map="auto",
             torch_dtype=torch.bfloat16,
@@ -367,15 +378,71 @@ class GemmaChat:
         self.model.eval()
         log.info("Model loaded.")
 
-    def chat(self, messages: list[dict], temperature: float = 0.7) -> str:
-        """Run one forward pass with the given chat messages and return the response text."""
+    def chat(self, messages: list[dict], temperature: float = 0.7,
+             image=None) -> str:
+        """
+        Run one forward pass with the given chat messages and return the response text.
+
+        Parameters
+        ----------
+        messages : list[dict]
+            Standard chat messages with "role" and "content" keys.  Content may
+            be a plain string (both agents) or a list of typed-dict parts (used
+            internally when an image is attached).
+        temperature : float
+            Sampling temperature.
+        image : PIL.Image.Image or None
+            When provided, the image is prepended to the first user turn as a
+            visual input so the model can reason from the figure pixels.
+        """
         import torch
 
-        prompt = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+        if image is not None:
+            # Restructure messages so the first user turn includes the image token.
+            # Gemma 4 expects content as a list of typed dicts for multimodal turns.
+            structured: list[dict] = []
+            first_user_done = False
+            for msg in messages:
+                role    = msg["role"]
+                content = msg["content"]
+                if role == "system":
+                    structured.append({
+                        "role": "system",
+                        "content": [{"type": "text", "text": content}]
+                        if isinstance(content, str) else content,
+                    })
+                elif role == "user" and not first_user_done:
+                    text = content if isinstance(content, str) else ""
+                    structured.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "image"},
+                            {"type": "text", "text": text},
+                        ],
+                    })
+                    first_user_done = True
+                else:
+                    structured.append(msg)
 
+            inputs = self.processor.apply_chat_template(
+                structured,
+                images=[image],
+                return_tensors="pt",
+                return_dict=True,
+                add_generation_prompt=True,
+                tokenize=True,
+            ).to(self.model.device)
+        else:
+            # Text-only path (used by Agent 2, which does not need the image).
+            inputs = self.processor.apply_chat_template(
+                messages,
+                return_tensors="pt",
+                return_dict=True,
+                add_generation_prompt=True,
+                tokenize=True,
+            ).to(self.model.device)
+
+        input_len = inputs["input_ids"].shape[1]
         with torch.no_grad():
             out = self.model.generate(
                 **inputs,
@@ -383,10 +450,9 @@ class GemmaChat:
                 do_sample=temperature > 0,
                 temperature=max(temperature, 1e-4),
                 top_p=0.9,
-                pad_token_id=self.tokenizer.eos_token_id,
             )
-        gen_tokens = out[0][inputs["input_ids"].shape[1]:]
-        return self.tokenizer.decode(gen_tokens, skip_special_tokens=True).strip()
+        gen_tokens = out[0][input_len:]
+        return self.processor.decode(gen_tokens, skip_special_tokens=True).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -429,13 +495,27 @@ def figure_context_block(row: pd.Series) -> str:
 def run_agent1(chat: GemmaChat, row: pd.Series,
                prior_query: str | None = None, feedback: str | None = None) -> str | None:
     """
-    Agent 1 (Author): draft a query from the figure context.
+    Agent 1 (Author): draft a query grounded in the figure image and its metadata.
+
+    The figure image is loaded from disk and passed to the model so it can
+    reason from the actual visual content, not just the caption text.
 
     If feedback is provided (whether from a rejection or a parse failure on
     the previous attempt), it is included in the prompt so Agent 1 can revise.
 
     Returns the query string, or None if the model response could not be parsed.
     """
+    from PIL import Image as PILImage
+
+    # Load the figure image so Agent 1 can see the actual visual content.
+    image = None
+    image_path = row.get("image_path", "")
+    if image_path and os.path.isfile(str(image_path)):
+        try:
+            image = PILImage.open(image_path).convert("RGB")
+        except Exception as exc:
+            log.warning("Could not open image %s: %s — proceeding text-only.", image_path, exc)
+
     context  = figure_context_block(row)
     user_msg = f"Figure information:\n{context}\n\nProduce the JSON now."
 
@@ -453,12 +533,20 @@ def run_agent1(chat: GemmaChat, row: pd.Series,
         {"role": "system", "content": AGENT1_SYSTEM},
         {"role": "user",   "content": user_msg},
     ]
-    raw    = chat.chat(messages, temperature=AGENT1_TEMPERATURE)
+    raw    = chat.chat(messages, temperature=AGENT1_TEMPERATURE, image=image)
     parsed = extract_json(raw)
     if not parsed or "query" not in parsed or not str(parsed["query"]).strip():
         return None
 
     query = str(parsed["query"]).strip()
+
+    # Catch any placeholder text that was never filled in (e.g. "<the query text>").
+    if re.search(r"<[^>]{1,60}>", query):
+        log.warning(
+            "Agent 1 produced a placeholder-style query %r — treating as parse failure.", query
+        )
+        return None
+
     # Remove any accidental "Figure X" references that would violate the benchmark rules.
     query = re.sub(r"(?i)\b(fig(ure)?\.?\s*[0-9a-z]+)\b", "", query)
     query = re.sub(r"\s+", " ", query).strip()
