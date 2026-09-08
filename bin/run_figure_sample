@@ -35,11 +35,20 @@ YEAR=$1
 MONTH=$2
 shift 2
 
-if ! conda env list | grep -qw "scidiscovery"; then
+if command -v conda &> /dev/null; then
+    CONDA_CMD="conda"
+elif [ -f "$HOME/miniconda3/bin/conda" ]; then
+    CONDA_CMD="$HOME/miniconda3/bin/conda"
+else
+    echo "Error: conda not found. Run 'bash bin/install' first."
+    exit 1
+fi
+
+if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
     echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
 
 echo "[ Running figure sampler for $YEAR/$MONTH ]"
-conda run -n scidiscovery python3 query_generator/sample_figures.py "$YEAR" "$MONTH" "$@"
+"$CONDA_CMD" run -n scidiscovery python3 query_generator/sample_figures.py "$YEAR" "$MONTH" "$@"
 echo "Figure sampling complete."
