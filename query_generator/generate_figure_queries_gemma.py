@@ -376,6 +376,13 @@ class GemmaChat:
             **quant_kwargs,
         )
         self.model.eval()
+        # With 4-bit quantization + accelerate device_map, activations flowing
+        # through the vision encoder are bfloat16, but LayerNorm weights stay
+        # float32 by default — causing a dtype mismatch.  Cast all LayerNorm
+        # modules to bfloat16 so they accept the activations accelerate sends.
+        for module in self.model.modules():
+            if isinstance(module, torch.nn.LayerNorm):
+                module.to(torch.bfloat16)
         log.info("Model loaded.")
 
     def chat(self, messages: list[dict], temperature: float = 0.7,
@@ -438,10 +445,6 @@ class GemmaChat:
                 images=[image],
                 return_tensors="pt",
             ).to(self.model.device)
-            # Vision encoder LayerNorm expects float32; cast pixel_values
-            # explicitly since .to(device) may promote them to bfloat16.
-            if "pixel_values" in inputs:
-                inputs["pixel_values"] = inputs["pixel_values"].to(torch.float32)
         else:
             # Text-only path (used by Agent 2, which does not need the image).
             inputs = self.processor.apply_chat_template(
