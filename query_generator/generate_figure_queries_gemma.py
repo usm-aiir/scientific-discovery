@@ -383,6 +383,21 @@ class GemmaChat:
             **quant_kwargs,
         )
         self.model.eval()
+
+        # The vision encoder casts pixel_values to patch_dense.weight.dtype
+        # (bfloat16) before passing them to patch_ln1.  If patch_ln1's weights
+        # are float32 (their default from the checkpoint), F.layer_norm fails.
+        # Fix: cast the weights of the affected vision norm layers to bfloat16
+        # by modifying .data directly, which is not intercepted by accelerate.
+        _vision_norms = {"patch_ln1", "patch_ln2", "pos_norm"}
+        for name, module in self.model.named_modules():
+            if name.split(".")[-1] in _vision_norms:
+                if hasattr(module, "weight") and module.weight is not None:
+                    module.weight.data = module.weight.data.to(torch.bfloat16)
+                if hasattr(module, "bias") and module.bias is not None:
+                    module.bias.data = module.bias.data.to(torch.bfloat16)
+                log.info("Cast %s weights to bfloat16.", name)
+
         log.info("Model loaded.")
 
     def chat(self, messages: list[dict], temperature: float = 0.7,
