@@ -233,18 +233,12 @@ def attach_image_paths(df: pd.DataFrame, figures_dir: str) -> pd.DataFrame:
     """
     Add an 'image_path' column to df and drop rows whose image is not on disk.
     Logs how many rows were kept vs. dropped.
-
-    FIX #4: replaced slow df.iterrows() loop with vectorized .apply().
     """
     df = df.copy()
-    # FIX #4: .apply() is orders of magnitude faster than iterrows() for
-    # row-wise operations on large DataFrames.
-    df["image_path"] = df.apply(
-        lambda row: resolve_image_path(
-            figures_dir, row["paper_id"], row["figure_id"], row["sub_id"]
-        ),
-        axis=1,
-    )
+    df["image_path"] = [
+        resolve_image_path(figures_dir, row["paper_id"], row["figure_id"], row["sub_id"])
+        for _, row in df.iterrows()
+    ]
     before = len(df)
     df = df[df["image_path"].notna()].reset_index(drop=True)
     log.info("Resolved images: %d / %d rows have a matching file on disk.", len(df), before)
@@ -349,25 +343,6 @@ def build_diverse_candidate_order(df: pd.DataFrame, target: int,
 # Model wrapper
 # ---------------------------------------------------------------------------
 
-def _normalize_messages_for_template(messages: list[dict]) -> list[dict]:
-    """
-    Ensure every message's content is in the typed-dict list format that
-    Gemma 4's chat template expects, i.e.:
-        {"role": "...", "content": [{"type": "text", "text": "..."}]}
-
-    FIX #3: previously the multimodal path converted system messages to list
-    format while the text-only path left them as plain strings, causing
-    inconsistent behaviour across chat-template implementations.
-    """
-    normalized = []
-    for msg in messages:
-        content = msg["content"]
-        if isinstance(content, str):
-            content = [{"type": "text", "text": content}]
-        normalized.append({"role": msg["role"], "content": content})
-    return normalized
-
-
 class GemmaChat:
     """
     Thin wrapper around a local HuggingFace vision-language model (Gemma 4).
@@ -431,7 +406,8 @@ class GemmaChat:
         ----------
         messages : list[dict]
             Standard chat messages with "role" and "content" keys.  Content may
-            be a plain string or a list of typed-dict parts.
+            be a plain string (both agents) or a list of typed-dict parts (used
+            internally when an image is attached).
         temperature : float
             Sampling temperature.
         image : PIL.Image.Image or None
@@ -440,20 +416,28 @@ class GemmaChat:
         """
         import torch
 
-        # FIX #3: normalise all messages to typed-dict list format so both
-        # paths use the same representation when calling apply_chat_template.
-        normalized = _normalize_messages_for_template(messages)
-
         if image is not None:
-            # Inject the image token into the first user turn.
+            # Restructure messages so the first user turn includes the image token.
+            # Gemma 4 expects content as a list of typed dicts for multimodal turns.
             structured: list[dict] = []
             first_user_done = False
-            for msg in normalized:
-                if msg["role"] == "user" and not first_user_done:
-                    # Prepend the image token before the text parts.
+            for msg in messages:
+                role    = msg["role"]
+                content = msg["content"]
+                if role == "system":
+                    structured.append({
+                        "role": "system",
+                        "content": [{"type": "text", "text": content}]
+                        if isinstance(content, str) else content,
+                    })
+                elif role == "user" and not first_user_done:
+                    text = content if isinstance(content, str) else ""
                     structured.append({
                         "role": "user",
-                        "content": [{"type": "image"}] + msg["content"],
+                        "content": [
+                            {"type": "image"},
+                            {"type": "text", "text": text},
+                        ],
                     })
                     first_user_done = True
                 else:
@@ -474,19 +458,13 @@ class GemmaChat:
                 return_tensors="pt",
             ).to(self.model.device)
         else:
-            # FIX #2: use the same two-step pattern as the multimodal path
-            # (tokenize=False → get string → processor call) instead of
-            # apply_chat_template(..., tokenize=True, return_dict=True).
-            # The return_dict parameter was only added in transformers 4.43,
-            # so the old single-step call raised TypeError on older versions.
-            prompt_text = self.processor.apply_chat_template(
-                normalized,
-                add_generation_prompt=True,
-                tokenize=False,
-            )
-            inputs = self.processor(
-                text=prompt_text,
+            # Text-only path (used by Agent 2, which does not need the image).
+            inputs = self.processor.apply_chat_template(
+                messages,
                 return_tensors="pt",
+                return_dict=True,
+                add_generation_prompt=True,
+                tokenize=True,
             ).to(self.model.device)
 
         input_len = inputs["input_ids"].shape[1]
@@ -507,28 +485,16 @@ class GemmaChat:
 # ---------------------------------------------------------------------------
 
 def extract_json(text: str) -> dict | None:
-    """
-    Pull the first {...} JSON object out of a model response, or return None.
-
-    FIX #7: use a non-greedy quantifier and json.JSONDecoder.raw_decode so
-    that spurious braces in surrounding text do not cause the regex to
-    over-match and swallow content past the closing brace of the JSON object.
-    """
+    """Pull the first {...} JSON object out of a model response, or return None."""
     text = re.sub(r"^```(json)?", "", text.strip()).strip()
     text = re.sub(r"```$", "", text).strip()
-
-    # Find the first '{' and attempt to parse a complete JSON object from
-    # that position; raw_decode stops at the first complete object.
-    start = text.find("{")
-    if start == -1:
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not match:
         return None
     try:
-        obj, _ = json.JSONDecoder().raw_decode(text, start)
-        if isinstance(obj, dict):
-            return obj
+        return json.loads(match.group(0))
     except json.JSONDecodeError:
-        pass
-    return None
+        return None
 
 
 def figure_context_block(row: pd.Series) -> str:
@@ -678,21 +644,14 @@ def load_already_done(output_tsv: str) -> set[str]:
     """
     Return the set of paper IDs that already have an accepted query in the
     output TSV (used to safely resume an interrupted run).
-
-    FIX #5: exceptions are now logged as warnings instead of being silently
-    swallowed, so a corrupt output file does not cause a silent restart that
-    duplicates work without any indication of what went wrong.
     """
     done: set[str] = set()
     if os.path.isfile(output_tsv):
         try:
             existing = pd.read_csv(output_tsv, sep="\t", dtype=str, keep_default_na=False)
             done = set(existing["paper_id"].tolist())
-        except Exception as exc:
-            log.warning(
-                "Could not read existing output %s: %s — starting fresh.",
-                output_tsv, exc,
-            )
+        except Exception:
+            pass
     return done
 
 
@@ -768,6 +727,10 @@ def main() -> None:
         )
 
     write_header = not os.path.isfile(args.output_tsv)
+    out_f = open(args.output_tsv, "a", encoding="utf-8")
+    if write_header:
+        out_f.write("paper_id\tfigure_id\tsub_id\tquery\n")
+        out_f.flush()
 
     n_accepted  = len(already_done)
     n_attempted = 0
@@ -775,50 +738,42 @@ def main() -> None:
 
     chat = GemmaChat(args.model_name, load_in_4bit=args.load_in_4bit)
 
-    # FIX #1: use a context manager so the file handle is always closed
-    # (and buffered writes flushed) even when an exception propagates out
-    # of the loop — e.g. model error, disk full, or KeyboardInterrupt.
-    with open(args.output_tsv, "a", encoding="utf-8") as out_f:
-        if write_header:
-            out_f.write("paper_id\tfigure_id\tsub_id\tquery\n")
-            out_f.flush()
+    for idx in order:
+        if n_accepted >= args.target:
+            break
+        row = df.loc[idx]
+        if row["paper_id"] in already_done:
+            continue
 
-        for idx in order:
-            if n_accepted >= args.target:
-                break
-            row = df.loc[idx]
-            if row["paper_id"] in already_done:
-                continue
+        n_attempted += 1
+        log.info(
+            "[%d/%d accepted | %d attempted | %d skipped] paper=%s figure=%s%s",
+            n_accepted, args.target, n_attempted, n_skipped,
+            row["paper_id"], row["figure_id"], row["sub_id"],
+        )
 
-            n_attempted += 1
-            # FIX #6: log figure_id and sub_id with an explicit "sub=" label
-            # so they are not silently concatenated into a single token.
-            log.info(
-                "[%d/%d accepted | %d attempted | %d skipped] paper=%s figure=%s sub=%s",
-                n_accepted, args.target, n_attempted, n_skipped,
-                row["paper_id"], row["figure_id"], row["sub_id"],
+        try:
+            query = generate_query_for_figure(chat, row, max_rounds=args.max_rounds)
+        except Exception as e:
+            log.exception(
+                "Error processing paper=%s figure=%s: %s",
+                row["paper_id"], row["figure_id"], e,
             )
+            query = None
 
-            try:
-                query = generate_query_for_figure(chat, row, max_rounds=args.max_rounds)
-            except Exception as e:
-                log.exception(
-                    "Error processing paper=%s figure=%s: %s",
-                    row["paper_id"], row["figure_id"], e,
-                )
-                query = None
+        if query is None:
+            n_skipped += 1
+            log.info("  -> SKIPPED after %d rounds.", args.max_rounds)
+            continue
 
-            if query is None:
-                n_skipped += 1
-                log.info("  -> SKIPPED after %d rounds.", args.max_rounds)
-                continue
+        # Strip tabs and newlines so the TSV stays well-formed.
+        clean_query = re.sub(r"\s+", " ", query).strip().replace("\t", " ")
+        out_f.write(f"{row['paper_id']}\t{row['figure_id']}\t{row['sub_id']}\t{clean_query}\n")
+        out_f.flush()
+        already_done.add(row["paper_id"])
+        n_accepted += 1
 
-            # Strip tabs and newlines so the TSV stays well-formed.
-            clean_query = re.sub(r"\s+", " ", query).strip().replace("\t", " ")
-            out_f.write(f"{row['paper_id']}\t{row['figure_id']}\t{row['sub_id']}\t{clean_query}\n")
-            out_f.flush()
-            already_done.add(row["paper_id"])
-            n_accepted += 1
+    out_f.close()
 
     if n_accepted < args.target:
         log.warning(
