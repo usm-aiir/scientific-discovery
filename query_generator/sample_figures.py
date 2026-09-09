@@ -1,6 +1,9 @@
 """
 sample_figures.py
 =================
+Scientific Discovery
+Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
+
 Samples up to 200 figures from a scraped arXiv month, stratified by
 subject category, and writes the result to a TSV ready for query generation.
 

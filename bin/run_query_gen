@@ -2,10 +2,12 @@
 ################################################################
 # run_query_gen     - Bash script
 # Scientific Discovery
-#
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
+#
+# Generates figure search queries for a sampled set of arXiv figures
+# using a local Gemma model, writing results to a TSV file.
 ################################################################
-set -euo pipefail   # FIX #1: exit on error, unbound vars, and pipe failures
+set -euo pipefail
 
 usage() {
     echo "Generates figure search queries using a local Gemma model."
@@ -18,7 +20,7 @@ usage() {
     echo "  figures_dir    Path to figures root dir (e.g. arxiv_data/figures)"
     echo "  output_tsv     Output file path         (default: queries_output.tsv)"
     echo "  --load_in_4bit Load model in 4-bit quantization (lower memory, requires GPU)"
-    echo "  --model_name   HuggingFace model name   (default: google/gemma-4-31B-it)"
+    echo "  --model_name   HuggingFace model name   (default: google/gemma-4-12b-it)"
     echo ""
     echo "Examples:"
     echo "  $0 arxiv_data/captions/24_10.tsv arxiv_data/metadata_24_10.tsv \\"
@@ -37,7 +39,7 @@ if [ $# -lt 4 ]; then
     exit 1
 fi
 
-# FIX #2: validate all input paths before doing anything expensive (model load).
+# Validate all input paths before doing anything expensive (model load).
 CAPTIONS_TSV="$1"
 METADATA_TSV="$2"
 REF_TSV="$3"
@@ -67,7 +69,7 @@ else
     OUTPUT_TSV="queries_output.tsv"
 fi
 
-# FIX #5: locate the scidiscovery environment by checking known paths directly
+# Locate the scidiscovery environment by checking known paths directly
 # instead of relying on 'conda env list', which can fail on shared systems
 # (e.g. a root-owned Anaconda that throws PermissionError before printing
 # the env list).  Checks the three most common install locations in order:
@@ -98,7 +100,7 @@ else
     exit 1
 fi
 
-# FIX #3: tee all output to a timestamped log file so progress is preserved
+# Tee all output to a timestamped log file so progress is preserved
 # if the terminal session dies during a long run.
 LOG_DIR="$(dirname "$OUTPUT_TSV")"
 LOG_FILE="${LOG_DIR:-.}/query_gen_$(date +%Y%m%d_%H%M%S).log"
@@ -107,17 +109,10 @@ echo "[ Logging to: $LOG_FILE ]"
 
 echo "[ Running figure query generation (Gemma) ]"
 
-# FIX #4: capture the Python exit code explicitly so "complete" is only
-# printed on actual success (set -e would exit the whole script on failure,
-# but we want to log a clear message before exiting).
+# Capture the Python exit code explicitly so "complete" is only
+# printed on actual success.
 set +e
-# CUDA_LAUNCH_BLOCKING=1 makes GPU kernels run synchronously so that a
-# device-side assert surfaces with the actual failing operation name instead
-# of a generic "device-side assert triggered" at some later unrelated call.
-# Remove this line (or set it to 0) once the assert is resolved — sync mode
-# adds overhead and slows inference.
-export CUDA_LAUNCH_BLOCKING=1
-"$CONDA_CMD" run --no-capture-output -p "$SCIDISCOVERY_ENV" python3 query_generator/generate_figure_queries_gemma.py \
+"$CONDA_CMD" run --no-capture-output -p "$SCIDISCOVERY_ENV" python3 query_generator/generate_figure_queries.py \
     --captions_tsv "$CAPTIONS_TSV" \
     --metadata_tsv "$METADATA_TSV" \
     --ref_tsv      "$REF_TSV" \

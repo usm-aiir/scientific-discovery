@@ -8,11 +8,16 @@
 # installs all required libraries.
 ################################################################
 
+# Print an indented status message followed by a blank line.
 mymsg () {
     echo "    >> $@"
     echo ""
 }
 
+# Check the exit status of the last command.
+#   $1 : number of CLI args passed to the main script (0 = strict mode,
+#        non-zero = force mode — continue after errors)
+#   $2 : success message printed via mymsg when the command succeeded
 testSuccess () {
     if [ $? -ne 0 ]
     then
@@ -20,7 +25,7 @@ testSuccess () {
         echo "** Installation error ** -- please review error messages above."
         if [ $1 -eq 0 ]
         then
-            exit $?
+            exit 1
         else
             echo "** Continuing..."
             echo ""
@@ -30,8 +35,11 @@ testSuccess () {
     fi
 }
 
+# Install PyTorch (GPU or CPU) and remaining pip dependencies into the
+# active Conda environment.  Detects GPU via nvidia-smi and selects the
+# appropriate PyTorch wheel index accordingly.
 pip_install () {
-    # $CONDA_PREFIX is set by 'conda activate' to the active environment's path
+    # Use the correct pip path for Windows (Scripts/) vs Linux/Mac (bin/)
     if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
         PIP="$CONDA_PREFIX/Scripts/pip"
     else

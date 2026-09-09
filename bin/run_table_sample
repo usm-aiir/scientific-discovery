@@ -2,27 +2,40 @@
 ################################################################
 # run_table_sample     - Bash script
 # Scientific Discovery
-#
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
+#
+# Draws a stratified random sample of 200 tables from scraper output
+# for a given arXiv month and writes results to a TSV file.
 ################################################################
 
 usage() {
     echo "Builds a stratified random sample of 200 tables from scraper output."
     echo ""
-    echo "usage: $0 [output_dir] [output_tsv]"
+    echo "usage: $0 <year> <month> [--data_dir DIR] [--output_tsv FILE]"
     echo ""
-    echo "  output_dir   Root directory of scraper output (default: arxiv_data)"
-    echo "  output_tsv   Path for output file (default: sampled_tables.tsv)"
+    echo "  year          Two-digit year (e.g. 24 for 2024)"
+    echo "  month         Two-digit month (e.g. 10 for October)"
+    echo "  --data_dir    Root directory of scraper output (default: arxiv_data)"
+    echo "  --output_tsv  Output file path (default: sampled_tables.tsv)"
     echo ""
     echo "Examples:"
-    echo "  $0"
-    echo "  $0 arxiv_data sampled_tables.tsv"
+    echo "  $0 24 10"
+    echo "  $0 24 10 --output_tsv results/sampled_24_10.tsv"
 }
 
-if [[ $1 == "--help" || $1 == "-h" ]]; then
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     usage
     exit 0
 fi
+
+if [ $# -lt 2 ]; then
+    usage
+    exit 1
+fi
+
+YEAR=$1
+MONTH=$2
+shift 2
 
 if command -v conda &> /dev/null; then
     CONDA_CMD="conda"
@@ -38,8 +51,6 @@ if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
     exit 1
 fi
 
-echo "[ Running table sampler ]"
-"$CONDA_CMD" run --no-capture-output -n scidiscovery python3 query_generator/table_sampler.py \
-    "${1:-arxiv_data}" \
-    "${2:-sampled_tables.tsv}"
-echo "Sampling complete."
+echo "[ Running table sampler for $YEAR/$MONTH ]"
+"$CONDA_CMD" run --no-capture-output -n scidiscovery python3 query_generator/table_sampler.py "$YEAR" "$MONTH" "$@"
+echo "Table sampling complete."

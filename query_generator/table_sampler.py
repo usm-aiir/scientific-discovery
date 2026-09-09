@@ -2,6 +2,9 @@
 """
 table_sampler.py
 ================
+Scientific Discovery
+Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
+
 Reads output files produced by table_scraper.py for a single year/month,
 merges them, and draws a reproducible stratified random sample of exactly
 200 unique tables while maintaining category diversity.
@@ -65,9 +68,9 @@ OUTPUT_COLUMNS = [
     "reference_text",
     "title",
     "abstract",
-    "query_1",
-    "query_2",
-    "query_3",
+    "Query 1",
+    "Query 2",
+    "Query 3",
 ]
 
 logging.basicConfig(
@@ -528,4 +531,4 @@ if __name__ == "__main__":
         month=args.month,
         output_dir=Path(args.output_dir),
         output_path=Path(output_tsv),
-    ) 
+    )

@@ -2,8 +2,10 @@
 ################################################################
 # run_figure_sample     - Bash script
 # Scientific Discovery
-#
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
+#
+# Draws a stratified random sample of 200 figures from scraper output
+# for a given arXiv month and writes results to a TSV file.
 ################################################################
 
 usage() {
@@ -35,20 +37,15 @@ YEAR=$1
 MONTH=$2
 shift 2
 
-if command -v conda &> /dev/null; then
-    CONDA_CMD="conda"
-elif [ -f "$HOME/miniconda3/bin/conda" ]; then
-    CONDA_CMD="$HOME/miniconda3/bin/conda"
-else
-    echo "Error: conda not found. Run 'bash bin/install' first."
-    exit 1
-fi
+# Pass any remaining flags (--data_dir, --output_tsv) straight through to Python
+EXTRA_ARGS="$@"
 
-if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
+PYTHON=$(conda run -n scidiscovery which python3 2>/dev/null)
+if [ -z "$PYTHON" ]; then
     echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
 
 echo "[ Running figure sampler for $YEAR/$MONTH ]"
-"$CONDA_CMD" run --no-capture-output -n scidiscovery python3 query_generator/sample_figures.py "$YEAR" "$MONTH" "$@"
+"$PYTHON" query_generator/sample_figures.py "$YEAR" "$MONTH" $EXTRA_ARGS
 echo "Figure sampling complete."

@@ -1,6 +1,9 @@
 """
-arxiv_scraper.py
-================
+figure_scraper.py
+=================
+Scientific Discovery
+Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
+
 Scrapes arXiv HTML pages (via ar5iv) for paper metadata, figures, captions,
 and in-text figure references, then writes everything to a structured
 file hierarchy.
