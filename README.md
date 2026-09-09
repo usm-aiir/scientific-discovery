@@ -143,6 +143,23 @@ python evaluate_clip_retrieval.py \
 
 Vanilla CLIP performs near-randomly on scientific figures, establishing the baseline this project aims to improve on.
 
+## Environments
+
+The pipeline uses two conda environments:
+
+**`scidiscovery`** — used for scraping, sampling, and query generation. Created automatically by the installer:
+
+```bash
+bin/install
+```
+
+**`llm2vecenv`** — used only for CLIP retrieval evaluation. Pre-installed on the HPC cluster at `/apps/conda/adah.holt/envs/llm2vecenv`. To recreate on a new machine:
+
+```bash
+conda env create -f environment_llm2vec.yml
+conda activate llm2vecenv
+```
+
 ## Purpose
 
 To provide the figure and table retrieval foundation for a multimodal scientific discovery system — a RAG pipeline that routes natural-language queries across text, table, and image modalities and returns grounded, attributable answers.
