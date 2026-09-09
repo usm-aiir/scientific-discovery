@@ -538,6 +538,26 @@ class GemmaChat:
 
         input_len = inputs["input_ids"].shape[1]
 
+        # FIX #16: validate token IDs before they reach the GPU.
+        # A processor/model version mismatch (common with Gemma 3 image tokens)
+        # can produce token IDs >= vocab_size, causing an unrecoverable CUDA
+        # device-side assert that kills the entire GPU context.  Catching this
+        # on the CPU first means the figure is skipped cleanly and the GPU
+        # context survives for subsequent figures.
+        vocab_size = self.model.config.vocab_size
+        max_token_id = int(inputs["input_ids"].max().item())
+        if max_token_id >= vocab_size:
+            raise ValueError(
+                f"Processor generated token ID {max_token_id} which exceeds "
+                f"model vocab size {vocab_size}. This is usually a "
+                f"processor/model version mismatch — check that both were "
+                f"loaded from the same model name."
+            )
+
+        # FIX #17: synchronize after generate() so CUDA errors surface
+        # immediately at the right call rather than propagating silently to
+        # the next figure and breaking the GPU context there instead.
+
         # FIX #11: only pass temperature/top_p when actually sampling.
         # Passing them with do_sample=False raises ValueError in transformers >= 4.46.
         do_sample = temperature > 0
@@ -551,6 +571,10 @@ class GemmaChat:
 
         with torch.no_grad():
             out = self.model.generate(**inputs, **gen_kwargs)
+            # FIX #17: force synchronization so any CUDA error surfaces here
+            # rather than silently propagating to the next figure's .to() call.
+            if torch.cuda.is_available():
+                torch.cuda.synchronize(self._input_device)
 
         gen_tokens = out[0][input_len:]
         return self.processor.decode(gen_tokens, skip_special_tokens=True).strip()
