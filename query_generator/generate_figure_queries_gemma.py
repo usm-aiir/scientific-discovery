@@ -783,6 +783,20 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
+    # FIX #12: validate figures_dir early — a wrong path silently drops all
+    # candidates and exits with a confusing "no images found" message.
+    if not os.path.isdir(args.figures_dir):
+        log.error(
+            "figures_dir does not exist or is not a directory: %s", args.figures_dir
+        )
+        sys.exit(1)
+
+    # FIX #13: create the output directory if it doesn't exist, so paths like
+    # 'results/queries_200.tsv' don't crash at the open() call below.
+    output_dir = os.path.dirname(args.output_tsv)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
     log.info("Loading and joining TSVs ...")
     df = load_data(args.captions_tsv, args.metadata_tsv, args.ref_tsv)
     log.info("Joined rows with non-empty captions: %d", len(df))
@@ -808,7 +822,12 @@ def main() -> None:
             len(already_done), args.output_tsv,
         )
 
-    write_header = not os.path.isfile(args.output_tsv)
+    # FIX #14: treat a zero-byte file as having no header (e.g. the script
+    # crashed after creating the file but before writing the header line).
+    write_header = (
+        not os.path.isfile(args.output_tsv)
+        or os.path.getsize(args.output_tsv) == 0
+    )
 
     n_accepted  = len(already_done)
     n_attempted = 0
@@ -838,6 +857,14 @@ def main() -> None:
             try:
                 query = generate_query_for_figure(chat, row, max_rounds=args.max_rounds)
             except Exception as e:
+                # FIX #15: flush GPU cache after any error so subsequent figures
+                # don't inherit a corrupted CUDA state from a prior OOM.
+                try:
+                    import torch
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                except Exception:
+                    pass
                 log.exception(
                     "Error processing paper=%s figure=%s: %s",
                     row["paper_id"], row["figure_id"], e,
