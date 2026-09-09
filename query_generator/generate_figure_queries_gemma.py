@@ -389,13 +389,26 @@ class GemmaChat:
             )
 
         self.processor = AutoProcessor.from_pretrained(model_name)
+        # FIX #21/#22/#23: dtype strategy for Turing GPUs (RTX 2080 Ti, compute 7.5).
+        #
+        # Gemma 3 was trained in bfloat16. Its activations regularly exceed float16's max
+        # (~65504), causing logit overflow → NaN probs → torch.multinomial CUDA assert.
+        # So float16 is not safe for non-quantized runs.
+        #
+        # Turing has no bfloat16 tensor cores, but PyTorch falls back to float32 emulation
+        # for bfloat16 ops — correct results, slightly slower. We therefore use bfloat16 for
+        # non-quantized runs so the model stays in its native dtype and avoids overflow.
+        #
+        # For 4-bit runs, bitsandbytes controls arithmetic via bnb_4bit_compute_dtype=float16;
+        # torch_dtype here only affects non-quantized parameters, so float16 is fine there.
+        _model_dtype = torch.float16 if load_in_4bit else torch.bfloat16
         self.model = AutoModelForImageTextToText.from_pretrained(
             model_name,
             device_map="auto",
-            torch_dtype=torch.float16,  # FIX #21: torch_dtype (not dtype) is the correct kwarg;
-                                        # 'dtype' was silently ignored, leaving non-quantized params
-                                        # (vision encoder, layer norms) in bfloat16, which triggers
-                                        # a CUDA device-side assert on Turing GPUs (no bf16 support).
+            torch_dtype=_model_dtype,
+            attn_implementation="eager",  # FIX #22: force standard attention math;
+                                          # sdp may pick kernels incompatible with the
+                                          # runtime dtype on older GPUs.
             **quant_kwargs,
         )
 
@@ -819,7 +832,8 @@ def figure_context_block(row: pd.Series) -> str:
 
 
 def run_agent1(chat: GemmaChat, row: pd.Series,
-               prior_query: str | None = None, feedback: str | None = None) -> str | None:
+               prior_query: str | None = None, feedback: str | None = None,
+               text_only: bool = False) -> str | None:
     """
     Agent 1 (Author): draft a query grounded in the figure image and its metadata.
 
@@ -829,17 +843,24 @@ def run_agent1(chat: GemmaChat, row: pd.Series,
     If feedback is provided (whether from a rejection or a parse failure on
     the previous attempt), it is included in the prompt so Agent 1 can revise.
 
+    Pass text_only=True (or --text_only on the CLI) to skip image loading
+    and rely entirely on the text context (title, abstract, caption, reference).
+    Use this as a fallback when the vision encoder causes GPU errors.
+
     Returns the query string, or None if the model response could not be parsed.
     """
     from PIL import Image as PILImage
 
     image = None
-    image_path = row.get("image_path", "")
-    if image_path and os.path.isfile(str(image_path)):
-        try:
-            image = PILImage.open(image_path).convert("RGB")
-        except Exception as exc:
-            log.warning("Could not open image %s: %s — proceeding text-only.", image_path, exc)
+    if text_only:
+        pass  # deliberately skip image loading
+    else:
+        image_path = row.get("image_path", "")
+        if image_path and os.path.isfile(str(image_path)):
+            try:
+                image = PILImage.open(image_path).convert("RGB")
+            except Exception as exc:
+                log.warning("Could not open image %s: %s — proceeding text-only.", image_path, exc)
 
     context  = figure_context_block(row)
     user_msg = f"Figure information:\n{context}\n\nProduce the JSON now."
@@ -907,7 +928,8 @@ def run_agent2(chat: GemmaChat, row: pd.Series,
 
 
 def generate_query_for_figure(chat: GemmaChat, row: pd.Series,
-                               max_rounds: int = DEFAULT_MAX_ROUNDS) -> str | None:
+                               max_rounds: int = DEFAULT_MAX_ROUNDS,
+                               text_only: bool = False) -> str | None:
     """
     Run the two-agent loop for a single figure.
 
@@ -918,7 +940,8 @@ def generate_query_for_figure(chat: GemmaChat, row: pd.Series,
     """
     query, feedback = None, None
     for attempt in range(1, max_rounds + 1):
-        query = run_agent1(chat, row, prior_query=query, feedback=feedback)
+        query = run_agent1(chat, row, prior_query=query, feedback=feedback,
+                           text_only=text_only)
         if query is None:
             log.info("  attempt %d: Agent 1 produced no parseable query.", attempt)
             feedback = (
@@ -993,6 +1016,9 @@ def parse_args() -> argparse.Namespace:
                     help=f"HuggingFace model name or local path (default: {DEFAULT_MODEL}).")
     ap.add_argument("--load_in_4bit",    action="store_true",
                     help="Load the model in 4-bit quantization (requires bitsandbytes).")
+    ap.add_argument("--text_only",       action="store_true",
+                    help="Skip image loading entirely; generate queries from text context only. "
+                         "Use this as a fallback when the vision encoder causes GPU errors.")
     ap.add_argument("--seed",            type=int, default=DEFAULT_SEED,
                     help=f"Random seed for candidate selection (default: {DEFAULT_SEED}).")
     return ap.parse_args()
@@ -1023,8 +1049,26 @@ def main() -> None:
     df = attach_image_paths(df, args.figures_dir)
 
     if df.empty:
-        log.error("No candidate figures with images found on disk. Exiting.")
-        sys.exit(1)
+        if args.text_only:
+            # In text-only mode the image column isn't used; attach_image_paths drops
+            # rows with no image on disk.  Re-load without the image filter so we still
+            # have figures to process.
+            log.warning(
+                "No figures found on disk — but --text_only is set, so images are not "
+                "needed.  Re-loading all rows without the image-file filter."
+            )
+            df = load_data(args.captions_tsv, args.metadata_tsv, args.ref_tsv)
+            df["image_path"] = None
+            log.info("Text-only mode: %d candidate figures loaded.", len(df))
+            if df.empty:
+                log.error("No candidate figures found in the TSVs either. Exiting.")
+                sys.exit(1)
+        else:
+            log.error("No candidate figures with images found on disk. Exiting.")
+            sys.exit(1)
+
+    if args.text_only:
+        log.info("--text_only mode: image loading disabled, generating queries from text context only.")
 
     order = build_diverse_candidate_order(
         df,
@@ -1073,7 +1117,8 @@ def main() -> None:
             )
 
             try:
-                query = generate_query_for_figure(chat, row, max_rounds=args.max_rounds)
+                query = generate_query_for_figure(chat, row, max_rounds=args.max_rounds,
+                                                  text_only=args.text_only)
             except Exception as e:
                 # FIX #15: flush GPU cache after any error so subsequent figures
                 # don't inherit a corrupted CUDA state from a prior OOM.
