@@ -65,6 +65,9 @@ OUTPUT_COLUMNS = [
     "reference_text",
     "title",
     "abstract",
+    "query_1",
+    "query_2",
+    "query_3",
 ]
 
 logging.basicConfig(
@@ -525,4 +528,4 @@ if __name__ == "__main__":
         month=args.month,
         output_dir=Path(args.output_dir),
         output_path=Path(output_tsv),
-    )
+    ) 
