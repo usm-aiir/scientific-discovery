@@ -76,7 +76,7 @@ else
     exit 1
 fi
 
-if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
+if ! "$CONDA_CMD" env list 2>/dev/null | grep -qw "scidiscovery"; then
     echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
