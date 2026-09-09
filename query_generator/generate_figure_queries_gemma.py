@@ -381,43 +381,99 @@ class GemmaChat:
         log.info("Loading model %s ...", model_name)
 
         quant_kwargs: dict = {}
-        # FIX #20: when loading in 4-bit, explicitly exclude the vision encoder
-        # and its projection layer from quantization.  bitsandbytes applies 4-bit
-        # quantization to ALL nn.Linear layers by default, including those inside
-        # SigLIP (the vision encoder).  On Turing GPUs (RTX 2080 Ti, compute 7.5)
-        # the quantized vision kernels trigger a CUDA device-side assert during the
-        # first model.generate() call that processes an image, killing the GPU
-        # context permanently.  Keeping the vision components in float16 avoids
-        # this while still quantizing the (much larger) text model.
-        #
-        # Module names cover Gemma 3 multimodal and common VLM naming conventions;
-        # transformers does a prefix match so "vision_tower" also skips
-        # "vision_tower.encoder", "vision_tower.head", etc.
-        _VISION_MODULES_TO_SKIP = [
-            "vision_tower",           # Gemma 3 / LLaVA / Idefics
-            "vision_model",           # some PaliGemma variants
-            "image_encoder",          # Mistral-VL style
-            "multi_modal_projector",  # connector between vision and text
-            "mm_projector",
-            "image_newline",
-        ]
-
         if load_in_4bit:
             from transformers import BitsAndBytesConfig
             quant_kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
             )
-            # Tell transformers not to quantize vision components.
-            quant_kwargs["modules_to_not_convert"] = _VISION_MODULES_TO_SKIP
 
         self.processor = AutoProcessor.from_pretrained(model_name)
         self.model = AutoModelForImageTextToText.from_pretrained(
             model_name,
             device_map="auto",
-            torch_dtype=torch.float16,
+            dtype=torch.float16,   # use dtype= (torch_dtype= is deprecated)
             **quant_kwargs,
         )
+
+        # FIX #20: after 4-bit loading, convert vision encoder layers back to
+        # float16 in-place.  bitsandbytes quantizes ALL nn.Linear layers by
+        # default, including the SigLIP vision encoder.  On Turing GPUs (RTX
+        # 2080 Ti, compute 7.5) the quantized vision kernels trigger a CUDA
+        # device-side assert on the first image forward pass, killing the GPU
+        # context for every subsequent figure.  Dequantizing the vision layers
+        # here leaves them in float16 (minimal VRAM cost — encoder is small)
+        # while the text model stays 4-bit quantized.
+        #
+        # This is done AFTER from_pretrained because the transformers version
+        # installed on this server doesn't accept modules_to_not_convert as a
+        # from_pretrained kwarg.
+        if load_in_4bit:
+            _VISION_PREFIXES = (
+                "vision_tower",          # Gemma 3 / LLaVA
+                "vision_model",          # PaliGemma variants
+                "image_encoder",         # Mistral-VL
+                "multi_modal_projector", # cross-modal connector
+                "mm_projector",
+                "image_newline",
+            )
+            try:
+                import bitsandbytes as bnb
+                n_dequant = 0
+                for full_name, module in list(self.model.named_modules()):
+                    if not isinstance(module, bnb.nn.Linear4bit):
+                        continue
+                    if not any(full_name.startswith(p) for p in _VISION_PREFIXES):
+                        continue
+                    # Dequantize the 4-bit weight back to float16.
+                    try:
+                        w16 = module.weight.dequantize().to(torch.float16)
+                    except Exception:
+                        try:
+                            w16 = bnb.functional.dequantize_4bit(
+                                module.weight.data, module.weight.quant_state
+                            ).to(torch.float16)
+                        except Exception as inner:
+                            log.warning(
+                                "Cannot dequantize vision layer %s: %s — skipping.",
+                                full_name, inner,
+                            )
+                            continue
+                    parent_name, child_name = full_name.rsplit(".", 1)
+                    parent_mod = self.model.get_submodule(parent_name)
+                    new_linear = torch.nn.Linear(
+                        w16.shape[1], w16.shape[0],
+                        bias=module.bias is not None,
+                        device=w16.device,
+                        dtype=torch.float16,
+                    )
+                    new_linear.weight = torch.nn.Parameter(w16)
+                    if module.bias is not None:
+                        new_linear.bias = torch.nn.Parameter(
+                            module.bias.to(device=w16.device, dtype=torch.float16)
+                        )
+                    setattr(parent_mod, child_name, new_linear)
+                    n_dequant += 1
+
+                if n_dequant:
+                    log.info(
+                        "Dequantized %d vision encoder layers to float16 "
+                        "(Turing GPU / 4-bit vision kernel workaround).",
+                        n_dequant,
+                    )
+                else:
+                    log.warning(
+                        "No 4-bit vision layers found to dequantize — checked "
+                        "prefixes: %s.  The vision encoder may already be float16 "
+                        "or use different module names.", _VISION_PREFIXES,
+                    )
+            except Exception as dq_err:
+                log.warning(
+                    "Vision encoder dequantization failed (%s) — GPU may still "
+                    "crash on image input.  If errors persist, re-run without "
+                    "--load_in_4bit and use google/gemma-3-4b-it instead.",
+                    dq_err,
+                )
         self.model.eval()
 
         # With device_map="auto" the model may be split across multiple GPUs.
