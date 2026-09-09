@@ -399,24 +399,32 @@ class GemmaChat:
             **quant_kwargs,
         )
 
-        # FIX #21 (continued): After loading, cast any remaining bfloat16 tensors to float16.
-        # Some model configs set torch_dtype=bfloat16 internally; this guarantees no bf16 survives.
-        _n_bf16_cast = 0
-        for _p in self.model.parameters():
-            if _p.dtype == torch.bfloat16:
-                _p.data = _p.data.to(torch.float16)
-                _n_bf16_cast += 1
-        for _name, _buf in self.model.named_buffers():
-            if _buf.dtype == torch.bfloat16:
-                _buf.data = _buf.data.to(torch.float16)
-                _n_bf16_cast += 1
-        if _n_bf16_cast:
-            log.info(
-                "FIX #21: cast %d bfloat16 parameter/buffer tensors to float16 "
-                "(Turing GPU has no bfloat16 hardware support).", _n_bf16_cast
+        # FIX #21 (continued): Log a diagnostic so we can confirm non-quantized params loaded
+        # as float16.  We do NOT iterate over all parameters and cast — that corrupts
+        # bnb.nn.Params4bit weights (which store packed uint8 data internally) because
+        # naive .data = .data.to(float16) reinterprets the packed storage and loses the
+        # quant_state, causing a shape mismatch in the forward pass.
+        # torch_dtype=float16 in from_pretrained already handles all non-quantized params;
+        # quantized params use bnb_4bit_compute_dtype=float16 for arithmetic.
+        try:
+            import bitsandbytes as bnb
+            _bf16_non_quant = [
+                n for n, p in self.model.named_parameters()
+                if p.dtype == torch.bfloat16 and not isinstance(p, bnb.nn.Params4bit)
+            ]
+        except ImportError:
+            _bf16_non_quant = [
+                n for n, p in self.model.named_parameters()
+                if p.dtype == torch.bfloat16
+            ]
+        if _bf16_non_quant:
+            log.warning(
+                "FIX #21: %d non-quantized parameters are still bfloat16 after loading "
+                "with torch_dtype=float16 — first few: %s. "
+                "Turing GPU may crash on these.", len(_bf16_non_quant), _bf16_non_quant[:5]
             )
         else:
-            log.info("FIX #21: model loaded cleanly in float16 — no bfloat16 tensors found.")
+            log.info("FIX #21: all non-quantized parameters confirmed float16 — no stray bfloat16.")
 
         # FIX #20: after 4-bit loading, convert vision encoder layers back to
         # float16 in-place.  bitsandbytes quantizes ALL nn.Linear layers by
