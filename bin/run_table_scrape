@@ -2,8 +2,10 @@
 ################################################################
 # run_table_scrape     - Bash script
 # Scientific Discovery
-#
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
+#
+# Scrapes arXiv HTML pages for a given year and month, extracting
+# tables, captions, cell grids, footnotes, and in-text references.
 ################################################################
 
 usage() {
@@ -37,20 +39,14 @@ YEAR=$1
 MONTH=$2
 shift 2
 
-if command -v conda &> /dev/null; then
-    CONDA_CMD="conda"
-elif [ -f "$HOME/miniconda3/bin/conda" ]; then
-    CONDA_CMD="$HOME/miniconda3/bin/conda"
-else
-    echo "Error: conda not found. Run 'bash bin/install' first."
-    exit 1
-fi
+EXTRA_ARGS="$@"
 
-if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
+PYTHON=$(conda run -n scidiscovery which python3 2>/dev/null)
+if [ -z "$PYTHON" ]; then
     echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
 
 echo "[ Running arXiv table scraper for $YEAR/$MONTH ]"
-"$CONDA_CMD" run --no-capture-output -n scidiscovery python3 scrapers/table_scraper.py "$YEAR" "$MONTH" "$@"
+"$PYTHON" scrapers/table_scraper.py "$YEAR" "$MONTH" $EXTRA_ARGS
 echo "Table scrape complete."

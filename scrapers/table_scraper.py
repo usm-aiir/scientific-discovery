@@ -1,6 +1,9 @@
 """
 table_scraper.py
 ================
+Scientific Discovery
+Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
+
 Scrapes arXiv HTML pages (via ar5iv) for tables: caption text, full cell
 grid (headers + values, with rowspan/colspan preserved), in-text references
 to each table, and any footnotes embedded in the caption or cells.
