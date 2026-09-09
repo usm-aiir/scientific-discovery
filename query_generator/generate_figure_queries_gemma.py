@@ -483,29 +483,60 @@ class GemmaChat:
         normalized = _normalize_messages_for_template(messages)
 
         if image is not None:
-            # Inject the image token into the first user turn.
+            # FIX #18: embed the PIL image directly in the message content so
+            # that apply_chat_template knows the image dimensions when computing
+            # how many image tokens to insert into input_ids.
+            #
+            # The original two-step approach (template→string, then processor
+            # called separately with images=[image]) can produce a mismatch: the
+            # template inserts a fixed placeholder count while the processor may
+            # compute a DIFFERENT count based on the actual image resolution.
+            # That input_ids / pixel_values shape disagreement is the most common
+            # cause of "CUDA device-side assert triggered" on vision-language
+            # models — the model indexes into pixel_values at a position that
+            # doesn't exist and the CUDA kernel aborts.
+            #
+            # The fix is to use the one-step path where apply_chat_template
+            # receives both the messages and the image at the same time, so the
+            # processor can compute the correct token count before tokenising.
             structured: list[dict] = []
             first_user_done = False
             for msg in normalized:
                 if msg["role"] == "user" and not first_user_done:
                     structured.append({
                         "role": "user",
-                        "content": [{"type": "image"}] + msg["content"],
+                        "content": [{"type": "image", "image": image}] + msg["content"],
                     })
                     first_user_done = True
                 else:
                     structured.append(msg)
 
-            prompt_text = self.processor.apply_chat_template(
-                structured,
-                add_generation_prompt=True,
-                tokenize=False,
-            )
-            raw_inputs = self.processor(
-                text=prompt_text,
-                images=[image],
-                return_tensors="pt",
-            )
+            try:
+                # One-step path (transformers >= 4.49): processor receives the
+                # image in the message dict and generates input_ids + pixel_values
+                # with guaranteed matching shapes.
+                raw_inputs = self.processor.apply_chat_template(
+                    structured,
+                    add_generation_prompt=True,
+                    tokenize=True,
+                    return_dict=True,
+                    return_tensors="pt",
+                )
+            except TypeError:
+                # Fallback for older transformers that don't support
+                # tokenize=True + return_dict in apply_chat_template.
+                # Use two-step but keep the image in the content dict so the
+                # template at least has access to it when building the string.
+                prompt_text = self.processor.apply_chat_template(
+                    structured,
+                    add_generation_prompt=True,
+                    tokenize=False,
+                )
+                raw_inputs = self.processor(
+                    text=prompt_text,
+                    images=[image],
+                    return_tensors="pt",
+                )
         else:
             prompt_text = self.processor.apply_chat_template(
                 normalized,
