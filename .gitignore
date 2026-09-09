@@ -4,3 +4,7 @@ __pycache__/
 queries_output.tsv
 200_sampled_figures.tsv
 sampled_tables.tsv
+queries_01_output.tsv
+sampled_tables_01.tsv
+*_output.tsv
+sampled_*.tsv
