@@ -460,6 +460,33 @@ class GemmaChat:
             n_patched,
         )
 
+        # FIX #19: warm-up forward pass to flush deferred bitsandbytes 4-bit
+        # initialization.  When load_in_4bit=True, bitsandbytes defers some
+        # CUDA kernel compilation to the first actual computation; this causes
+        # the CUDA context to die at the first .to(device=...) call inside
+        # chat() rather than during model loading where it would be easier to
+        # diagnose.  Running a minimal embedding lookup here forces that
+        # initialization to happen now, while we still have good error context.
+        if torch.cuda.is_available():
+            log.info("Running GPU warm-up pass (flushes deferred bitsandbytes init) ...")
+            try:
+                dummy = torch.zeros((1, 4), dtype=torch.long, device=self._input_device)
+                with torch.no_grad():
+                    _ = self.model.get_input_embeddings()(dummy)
+                torch.cuda.synchronize(self._input_device)
+                log.info("GPU warm-up complete — CUDA context confirmed healthy.")
+            except RuntimeError as warmup_err:
+                log.error(
+                    "GPU warm-up FAILED.  This almost certainly means that "
+                    "bitsandbytes 4-bit quantization is not compatible with "
+                    "this GPU (RTX 2080 Ti / Turing compute 7.5) on the "
+                    "installed CUDA/bitsandbytes versions.  "
+                    "Try running without --load_in_4bit and a smaller model "
+                    "(e.g. google/gemma-3-4b-it fits in ~8 GB float16): %s",
+                    warmup_err,
+                )
+                raise
+
         log.info("Model loaded.")
 
     def chat(self, messages: list[dict], temperature: float = 0.7,
@@ -479,6 +506,18 @@ class GemmaChat:
             visual input so the model can reason from the figure pixels.
         """
         import torch
+
+        # FIX #19b: confirm CUDA context is alive at the top of every chat()
+        # call so we know exactly which figure killed it.
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.synchronize(self._input_device)
+            except RuntimeError as _ctx_err:
+                log.error(
+                    "CUDA context already dead at start of chat() — "
+                    "GPU was killed by a previous operation: %s", _ctx_err
+                )
+                raise
 
         normalized = _normalize_messages_for_template(messages)
 
