@@ -60,6 +60,8 @@ Example
         --target 200 --model_name google/gemma-4-31B-it
 """
 
+from __future__ import annotations  # FIX #8: enables str | None etc. on Python 3.9
+
 import argparse
 import json
 import logging
@@ -235,10 +237,12 @@ def attach_image_paths(df: pd.DataFrame, figures_dir: str) -> pd.DataFrame:
     Logs how many rows were kept vs. dropped.
     """
     df = df.copy()
-    df["image_path"] = [
-        resolve_image_path(figures_dir, row["paper_id"], row["figure_id"], row["sub_id"])
-        for _, row in df.iterrows()
-    ]
+    df["image_path"] = df.apply(
+        lambda row: resolve_image_path(
+            figures_dir, row["paper_id"], row["figure_id"], row["sub_id"]
+        ),
+        axis=1,
+    )
     before = len(df)
     df = df[df["image_path"].notna()].reset_index(drop=True)
     log.info("Resolved images: %d / %d rows have a matching file on disk.", len(df), before)
@@ -299,9 +303,10 @@ def build_diverse_candidate_order(df: pd.DataFrame, target: int,
     picked_df = df.loc[one_per_paper]
 
     # Within each category, interleave figures across length buckets.
+    # FIX #9: replaced iterrows() with .items() on the category Series.
     by_category: dict[str, list] = defaultdict(list)
-    for idx, row in picked_df.iterrows():
-        by_category[row["primary_category"]].append(idx)
+    for idx, cat in picked_df["primary_category"].items():
+        by_category[cat].append(idx)
 
     for cat, idxs in by_category.items():
         by_len: dict[str, list] = defaultdict(list)
@@ -343,6 +348,21 @@ def build_diverse_candidate_order(df: pd.DataFrame, target: int,
 # Model wrapper
 # ---------------------------------------------------------------------------
 
+def _normalize_messages_for_template(messages: list[dict]) -> list[dict]:
+    """
+    Ensure every message's content is in the typed-dict list format that
+    Gemma 4's chat template expects, i.e.:
+        {"role": "...", "content": [{"type": "text", "text": "..."}]}
+    """
+    normalized = []
+    for msg in messages:
+        content = msg["content"]
+        if isinstance(content, str):
+            content = [{"type": "text", "text": content}]
+        normalized.append({"role": msg["role"], "content": content})
+    return normalized
+
+
 class GemmaChat:
     """
     Thin wrapper around a local HuggingFace vision-language model (Gemma 4).
@@ -360,22 +380,244 @@ class GemmaChat:
         self.max_new_tokens = max_new_tokens
         log.info("Loading model %s ...", model_name)
 
-        quant_kwargs = {}
+        quant_kwargs: dict = {}
         if load_in_4bit:
             from transformers import BitsAndBytesConfig
             quant_kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_compute_dtype=torch.float16,
             )
 
         self.processor = AutoProcessor.from_pretrained(model_name)
+        # FIX #21/#22/#23: dtype strategy for Turing GPUs (RTX 2080 Ti, compute 7.5).
+        #
+        # Gemma 3 was trained in bfloat16. Its activations regularly exceed float16's max
+        # (~65504), causing logit overflow → NaN probs → torch.multinomial CUDA assert.
+        # So float16 is not safe for non-quantized runs.
+        #
+        # Turing has no bfloat16 tensor cores, but PyTorch falls back to float32 emulation
+        # for bfloat16 ops — correct results, slightly slower. We therefore use bfloat16 for
+        # non-quantized runs so the model stays in its native dtype and avoids overflow.
+        #
+        # For 4-bit runs, bitsandbytes controls arithmetic via bnb_4bit_compute_dtype=float16;
+        # torch_dtype here only affects non-quantized parameters, so float16 is fine there.
+        _model_dtype = torch.float16 if load_in_4bit else torch.bfloat16
         self.model = AutoModelForImageTextToText.from_pretrained(
             model_name,
             device_map="auto",
-            torch_dtype=torch.bfloat16,
+            torch_dtype=_model_dtype,
+            attn_implementation="eager",  # FIX #22: force standard attention math;
+                                          # sdp may pick kernels incompatible with the
+                                          # runtime dtype on older GPUs.
             **quant_kwargs,
         )
+
+        # FIX #21 (continued): Log a diagnostic so we can confirm non-quantized params loaded
+        # as float16.  We do NOT iterate over all parameters and cast — that corrupts
+        # bnb.nn.Params4bit weights (which store packed uint8 data internally) because
+        # naive .data = .data.to(float16) reinterprets the packed storage and loses the
+        # quant_state, causing a shape mismatch in the forward pass.
+        # torch_dtype=float16 in from_pretrained already handles all non-quantized params;
+        # quantized params use bnb_4bit_compute_dtype=float16 for arithmetic.
+        try:
+            import bitsandbytes as bnb
+            _bf16_non_quant = [
+                n for n, p in self.model.named_parameters()
+                if p.dtype == torch.bfloat16 and not isinstance(p, bnb.nn.Params4bit)
+            ]
+        except ImportError:
+            _bf16_non_quant = [
+                n for n, p in self.model.named_parameters()
+                if p.dtype == torch.bfloat16
+            ]
+        if _bf16_non_quant:
+            log.warning(
+                "FIX #21: %d non-quantized parameters are still bfloat16 after loading "
+                "with torch_dtype=float16 — first few: %s. "
+                "Turing GPU may crash on these.", len(_bf16_non_quant), _bf16_non_quant[:5]
+            )
+        else:
+            log.info("FIX #21: all non-quantized parameters confirmed float16 — no stray bfloat16.")
+
+        # FIX #20: after 4-bit loading, convert vision encoder layers back to
+        # float16 in-place.  bitsandbytes quantizes ALL nn.Linear layers by
+        # default, including the SigLIP vision encoder.  On Turing GPUs (RTX
+        # 2080 Ti, compute 7.5) the quantized vision kernels trigger a CUDA
+        # device-side assert on the first image forward pass, killing the GPU
+        # context for every subsequent figure.  Dequantizing the vision layers
+        # here leaves them in float16 (minimal VRAM cost — encoder is small)
+        # while the text model stays 4-bit quantized.
+        #
+        # This is done AFTER from_pretrained because the transformers version
+        # installed on this server doesn't accept modules_to_not_convert as a
+        # from_pretrained kwarg.
+        if load_in_4bit:
+            _VISION_PREFIXES = (
+                "vision_tower",          # Gemma 3 / LLaVA
+                "vision_model",          # PaliGemma variants
+                "image_encoder",         # Mistral-VL
+                "multi_modal_projector", # cross-modal connector
+                "mm_projector",
+                "image_newline",
+            )
+            try:
+                import bitsandbytes as bnb
+                # Log every 4-bit module name so we can verify vision prefixes.
+                all_4bit = [n for n, m in self.model.named_modules()
+                            if isinstance(m, bnb.nn.Linear4bit)]
+                log.info("Total 4-bit quantized Linear layers in model: %d", len(all_4bit))
+                if all_4bit:
+                    log.info("First 10 quantized layer names: %s", all_4bit[:10])
+
+                n_dequant = 0
+                for full_name, module in list(self.model.named_modules()):
+                    if not isinstance(module, bnb.nn.Linear4bit):
+                        continue
+                    # Use 'in' not 'startswith' — the model may wrap modules
+                    # under an extra 'model.' prefix (e.g. model.vision_tower.xxx)
+                    if not any(p in full_name for p in _VISION_PREFIXES):
+                        continue
+                    # Dequantize the 4-bit weight back to float16.
+                    try:
+                        w16 = module.weight.dequantize().to(torch.float16)
+                    except Exception:
+                        try:
+                            w16 = bnb.functional.dequantize_4bit(
+                                module.weight.data, module.weight.quant_state
+                            ).to(torch.float16)
+                        except Exception as inner:
+                            log.warning(
+                                "Cannot dequantize vision layer %s: %s — skipping.",
+                                full_name, inner,
+                            )
+                            continue
+                    parent_name, child_name = full_name.rsplit(".", 1)
+                    parent_mod = self.model.get_submodule(parent_name)
+                    new_linear = torch.nn.Linear(
+                        w16.shape[1], w16.shape[0],
+                        bias=module.bias is not None,
+                        device=w16.device,
+                        dtype=torch.float16,
+                    )
+                    new_linear.weight = torch.nn.Parameter(w16)
+                    if module.bias is not None:
+                        new_linear.bias = torch.nn.Parameter(
+                            module.bias.to(device=w16.device, dtype=torch.float16)
+                        )
+                    setattr(parent_mod, child_name, new_linear)
+                    n_dequant += 1
+
+                if n_dequant:
+                    log.info(
+                        "Dequantized %d vision encoder layers to float16 "
+                        "(Turing GPU / 4-bit vision kernel workaround).",
+                        n_dequant,
+                    )
+                else:
+                    log.warning(
+                        "No 4-bit vision layers found to dequantize — checked "
+                        "prefixes: %s.  The vision encoder may already be float16 "
+                        "or use different module names.", _VISION_PREFIXES,
+                    )
+            except Exception as dq_err:
+                log.warning(
+                    "Vision encoder dequantization failed (%s) — GPU may still "
+                    "crash on image input.  If errors persist, re-run without "
+                    "--load_in_4bit and use google/gemma-3-4b-it instead.",
+                    dq_err,
+                )
         self.model.eval()
+
+        # With device_map="auto" the model may be split across multiple GPUs.
+        # Find the embedding layer's device so input_ids land on the right one.
+        self._input_device = None
+        for module in self.model.modules():
+            if isinstance(module, torch.nn.Embedding):
+                d = module.weight.device
+                if d.type != "meta":
+                    self._input_device = d
+                    break
+        if self._input_device is None:
+            for p in self.model.parameters():
+                if p.device.type not in ("meta", "cpu") and p.is_floating_point():
+                    self._input_device = p.device
+                    break
+        if self._input_device is None:
+            self._input_device = torch.device(
+                "cuda:0" if torch.cuda.is_available() else "cpu"
+            )
+        log.info("Input device (embedding layer): %s", self._input_device)
+
+        # Flush any async CUDA errors that occurred during model loading.
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.synchronize(self._input_device)
+                log.info("CUDA context healthy after model load.")
+            except RuntimeError as cuda_err:
+                log.error(
+                    "CUDA error detected right after model.from_pretrained — "
+                    "likely a bitsandbytes / Turing incompatibility: %s", cuda_err
+                )
+                raise
+
+        # Cast LayerNorm inputs to float16 for Turing GPU (compute 7.5) compatibility.
+        # Accelerate wraps each module's forward as new_forward; patching _old_forward
+        # puts the cast after accelerate's device management and before F.layer_norm.
+        # FIX #10: define _ln_pre_hook once outside the loop — it uses `mod` (the
+        # hook's own argument), not the loop variable, so one definition is correct
+        # for all LayerNorm modules.
+        def _ln_pre_hook(mod, args):
+            return tuple(
+                a.to(mod.weight.dtype) if isinstance(a, torch.Tensor) else a
+                for a in args
+            )
+
+        def _make_ln_forward(original_forward, ln_module):
+            def _forward(x):
+                return original_forward(x.to(ln_module.weight.dtype))
+            return _forward
+
+        n_patched = 0
+        for module in self.model.modules():
+            if not isinstance(module, torch.nn.LayerNorm):
+                continue
+            if hasattr(module, '_old_forward'):
+                module._old_forward = _make_ln_forward(module._old_forward, module)
+            else:
+                module.register_forward_pre_hook(_ln_pre_hook)
+            n_patched += 1
+        log.info(
+            "Applied dtype-cast fix to %d LayerNorm layers (Turing GPU compatibility).",
+            n_patched,
+        )
+
+        # FIX #19: warm-up forward pass to flush deferred bitsandbytes 4-bit
+        # initialization.  When load_in_4bit=True, bitsandbytes defers some
+        # CUDA kernel compilation to the first actual computation; this causes
+        # the CUDA context to die at the first .to(device=...) call inside
+        # chat() rather than during model loading where it would be easier to
+        # diagnose.  Running a minimal embedding lookup here forces that
+        # initialization to happen now, while we still have good error context.
+        if torch.cuda.is_available():
+            log.info("Running GPU warm-up pass (flushes deferred bitsandbytes init) ...")
+            try:
+                dummy = torch.zeros((1, 4), dtype=torch.long, device=self._input_device)
+                with torch.no_grad():
+                    _ = self.model.get_input_embeddings()(dummy)
+                torch.cuda.synchronize(self._input_device)
+                log.info("GPU warm-up complete — CUDA context confirmed healthy.")
+            except RuntimeError as warmup_err:
+                log.error(
+                    "GPU warm-up FAILED.  This almost certainly means that "
+                    "bitsandbytes 4-bit quantization is not compatible with "
+                    "this GPU (RTX 2080 Ti / Turing compute 7.5) on the "
+                    "installed CUDA/bitsandbytes versions.  "
+                    "Try running without --load_in_4bit and a smaller model "
+                    "(e.g. google/gemma-3-4b-it fits in ~8 GB float16): %s",
+                    warmup_err,
+                )
+                raise
+
         log.info("Model loaded.")
 
     def chat(self, messages: list[dict], temperature: float = 0.7,
@@ -387,70 +629,160 @@ class GemmaChat:
         ----------
         messages : list[dict]
             Standard chat messages with "role" and "content" keys.  Content may
-            be a plain string (both agents) or a list of typed-dict parts (used
-            internally when an image is attached).
+            be a plain string or a list of typed-dict parts.
         temperature : float
-            Sampling temperature.
+            Sampling temperature.  Pass 0.0 for greedy decoding.
         image : PIL.Image.Image or None
             When provided, the image is prepended to the first user turn as a
             visual input so the model can reason from the figure pixels.
         """
         import torch
 
+        # FIX #19b: confirm CUDA context is alive at the top of every chat()
+        # call so we know exactly which figure killed it.
+        if torch.cuda.is_available():
+            try:
+                torch.cuda.synchronize(self._input_device)
+            except RuntimeError as _ctx_err:
+                log.error(
+                    "CUDA context already dead at start of chat() — "
+                    "GPU was killed by a previous operation: %s", _ctx_err
+                )
+                raise
+
+        normalized = _normalize_messages_for_template(messages)
+
         if image is not None:
-            # Restructure messages so the first user turn includes the image token.
-            # Gemma 4 expects content as a list of typed dicts for multimodal turns.
+            # FIX #18: embed the PIL image directly in the message content so
+            # that apply_chat_template knows the image dimensions when computing
+            # how many image tokens to insert into input_ids.
+            #
+            # The original two-step approach (template→string, then processor
+            # called separately with images=[image]) can produce a mismatch: the
+            # template inserts a fixed placeholder count while the processor may
+            # compute a DIFFERENT count based on the actual image resolution.
+            # That input_ids / pixel_values shape disagreement is the most common
+            # cause of "CUDA device-side assert triggered" on vision-language
+            # models — the model indexes into pixel_values at a position that
+            # doesn't exist and the CUDA kernel aborts.
+            #
+            # The fix is to use the one-step path where apply_chat_template
+            # receives both the messages and the image at the same time, so the
+            # processor can compute the correct token count before tokenising.
             structured: list[dict] = []
             first_user_done = False
-            for msg in messages:
-                role    = msg["role"]
-                content = msg["content"]
-                if role == "system":
-                    structured.append({
-                        "role": "system",
-                        "content": [{"type": "text", "text": content}]
-                        if isinstance(content, str) else content,
-                    })
-                elif role == "user" and not first_user_done:
-                    text = content if isinstance(content, str) else ""
+            for msg in normalized:
+                if msg["role"] == "user" and not first_user_done:
                     structured.append({
                         "role": "user",
-                        "content": [
-                            {"type": "image"},
-                            {"type": "text", "text": text},
-                        ],
+                        "content": [{"type": "image", "image": image}] + msg["content"],
                     })
                     first_user_done = True
                 else:
                     structured.append(msg)
 
-            inputs = self.processor.apply_chat_template(
-                structured,
-                images=[image],
-                return_tensors="pt",
-                return_dict=True,
-                add_generation_prompt=True,
-                tokenize=True,
-            ).to(self.model.device)
+            try:
+                # One-step path (transformers >= 4.49): processor receives the
+                # image in the message dict and generates input_ids + pixel_values
+                # with guaranteed matching shapes.
+                raw_inputs = self.processor.apply_chat_template(
+                    structured,
+                    add_generation_prompt=True,
+                    tokenize=True,
+                    return_dict=True,
+                    return_tensors="pt",
+                )
+            except TypeError:
+                # Fallback for older transformers that don't support
+                # tokenize=True + return_dict in apply_chat_template.
+                # Use two-step but keep the image in the content dict so the
+                # template at least has access to it when building the string.
+                prompt_text = self.processor.apply_chat_template(
+                    structured,
+                    add_generation_prompt=True,
+                    tokenize=False,
+                )
+                raw_inputs = self.processor(
+                    text=prompt_text,
+                    images=[image],
+                    return_tensors="pt",
+                )
         else:
-            # Text-only path (used by Agent 2, which does not need the image).
-            inputs = self.processor.apply_chat_template(
-                messages,
-                return_tensors="pt",
-                return_dict=True,
+            prompt_text = self.processor.apply_chat_template(
+                normalized,
                 add_generation_prompt=True,
-                tokenize=True,
-            ).to(self.model.device)
+                tokenize=False,
+            )
+            raw_inputs = self.processor(
+                text=prompt_text,
+                return_tensors="pt",
+            )
+
+        # Move tensors to the embedding layer's device; cast floats to float16
+        # (Turing GPUs have no bfloat16 CUDA kernels).
+        inputs = {}
+        for k, v in raw_inputs.items():
+            if not isinstance(v, torch.Tensor):
+                inputs[k] = v
+                continue
+            try:
+                if v.is_floating_point() and v.dtype != torch.float16:
+                    v = v.to(dtype=torch.float16)
+                v = v.to(device=self._input_device)
+            except RuntimeError as _e:
+                log.error(
+                    "Failed moving input '%s' (shape=%s dtype=%s) to %s: %s",
+                    k, tuple(v.shape), v.dtype, self._input_device, _e,
+                )
+                raise
+            inputs[k] = v
 
         input_len = inputs["input_ids"].shape[1]
-        with torch.no_grad():
-            out = self.model.generate(
-                **inputs,
-                max_new_tokens=self.max_new_tokens,
-                do_sample=temperature > 0,
-                temperature=max(temperature, 1e-4),
-                top_p=0.9,
+
+        # FIX #16: validate token IDs before they reach the GPU.
+        # A processor/model version mismatch (common with Gemma 3 image tokens)
+        # can produce token IDs >= vocab_size, causing an unrecoverable CUDA
+        # device-side assert that kills the entire GPU context.  Catching this
+        # on the CPU first means the figure is skipped cleanly and the GPU
+        # context survives for subsequent figures.
+        # Gemma3Config nests vocab_size inside text_config; fall back to reading
+        # the embedding table shape directly so this works for any model.
+        vocab_size = (
+            getattr(self.model.config, "vocab_size", None)
+            or getattr(getattr(self.model.config, "text_config", None), "vocab_size", None)
+            or self.model.get_input_embeddings().weight.shape[0]
+        )
+        max_token_id = int(inputs["input_ids"].max().item())
+        if max_token_id >= vocab_size:
+            raise ValueError(
+                f"Processor generated token ID {max_token_id} which exceeds "
+                f"model vocab size {vocab_size}. This is usually a "
+                f"processor/model version mismatch — check that both were "
+                f"loaded from the same model name."
             )
+
+        # FIX #17: synchronize after generate() so CUDA errors surface
+        # immediately at the right call rather than propagating silently to
+        # the next figure and breaking the GPU context there instead.
+
+        # FIX #11: only pass temperature/top_p when actually sampling.
+        # Passing them with do_sample=False raises ValueError in transformers >= 4.46.
+        do_sample = temperature > 0
+        gen_kwargs: dict = dict(
+            max_new_tokens=self.max_new_tokens,
+            do_sample=do_sample,
+        )
+        if do_sample:
+            gen_kwargs["temperature"] = temperature
+            gen_kwargs["top_p"] = 0.9
+
+        with torch.no_grad():
+            out = self.model.generate(**inputs, **gen_kwargs)
+            # FIX #17: force synchronization so any CUDA error surfaces here
+            # rather than silently propagating to the next figure's .to() call.
+            if torch.cuda.is_available():
+                torch.cuda.synchronize(self._input_device)
+
         gen_tokens = out[0][input_len:]
         return self.processor.decode(gen_tokens, skip_special_tokens=True).strip()
 
@@ -460,23 +792,30 @@ class GemmaChat:
 # ---------------------------------------------------------------------------
 
 def extract_json(text: str) -> dict | None:
-    """Pull the first {...} JSON object out of a model response, or return None."""
+    """
+    Pull the first {...} JSON object out of a model response, or return None.
+    """
     text = re.sub(r"^```(json)?", "", text.strip()).strip()
     text = re.sub(r"```$", "", text).strip()
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if not match:
+
+    start = text.find("{")
+    if start == -1:
         return None
     try:
-        return json.loads(match.group(0))
+        obj, _ = json.JSONDecoder().raw_decode(text, start)
+        if isinstance(obj, dict):
+            return obj
     except json.JSONDecodeError:
-        return None
+        pass
+    return None
 
 
 def figure_context_block(row: pd.Series) -> str:
     """Format a figure's metadata into the context block shown to both agents."""
     abstract = row.get("abstract", "")
     if len(abstract) > ABSTRACT_MAX_CHARS:
-        abstract = abstract[:ABSTRACT_MAX_CHARS] + " ..."
+        cut = abstract.rfind(" ", 0, ABSTRACT_MAX_CHARS)
+        abstract = abstract[: cut if cut != -1 else ABSTRACT_MAX_CHARS] + " ..."
 
     sub_label = f" (sub-figure {row['sub_id']})" if row["sub_id"] else ""
     ref_text  = row["reference_text"] or "(none found)"
@@ -493,7 +832,8 @@ def figure_context_block(row: pd.Series) -> str:
 
 
 def run_agent1(chat: GemmaChat, row: pd.Series,
-               prior_query: str | None = None, feedback: str | None = None) -> str | None:
+               prior_query: str | None = None, feedback: str | None = None,
+               text_only: bool = False) -> str | None:
     """
     Agent 1 (Author): draft a query grounded in the figure image and its metadata.
 
@@ -503,24 +843,29 @@ def run_agent1(chat: GemmaChat, row: pd.Series,
     If feedback is provided (whether from a rejection or a parse failure on
     the previous attempt), it is included in the prompt so Agent 1 can revise.
 
+    Pass text_only=True (or --text_only on the CLI) to skip image loading
+    and rely entirely on the text context (title, abstract, caption, reference).
+    Use this as a fallback when the vision encoder causes GPU errors.
+
     Returns the query string, or None if the model response could not be parsed.
     """
     from PIL import Image as PILImage
 
-    # Load the figure image so Agent 1 can see the actual visual content.
     image = None
-    image_path = row.get("image_path", "")
-    if image_path and os.path.isfile(str(image_path)):
-        try:
-            image = PILImage.open(image_path).convert("RGB")
-        except Exception as exc:
-            log.warning("Could not open image %s: %s — proceeding text-only.", image_path, exc)
+    if text_only:
+        pass  # deliberately skip image loading
+    else:
+        image_path = row.get("image_path", "")
+        if image_path and os.path.isfile(str(image_path)):
+            try:
+                image = PILImage.open(image_path).convert("RGB")
+            except Exception as exc:
+                log.warning("Could not open image %s: %s — proceeding text-only.", image_path, exc)
 
     context  = figure_context_block(row)
     user_msg = f"Figure information:\n{context}\n\nProduce the JSON now."
 
     if feedback:
-        # Include whatever context we have from the prior attempt.
         prior_note = f'Your previous attempt: "{prior_query}"\n' if prior_query else ""
         user_msg = (
             f"Figure information:\n{context}\n\n"
@@ -540,14 +885,12 @@ def run_agent1(chat: GemmaChat, row: pd.Series,
 
     query = str(parsed["query"]).strip()
 
-    # Catch any placeholder text that was never filled in (e.g. "<the query text>").
     if re.search(r"<[^>]{1,60}>", query):
         log.warning(
             "Agent 1 produced a placeholder-style query %r — treating as parse failure.", query
         )
         return None
 
-    # Remove any accidental "Figure X" references that would violate the benchmark rules.
     query = re.sub(r"(?i)\b(fig(ure)?\.?\s*[0-9a-z]+)\b", "", query)
     query = re.sub(r"\s+", " ", query).strip()
     return query or None
@@ -585,7 +928,8 @@ def run_agent2(chat: GemmaChat, row: pd.Series,
 
 
 def generate_query_for_figure(chat: GemmaChat, row: pd.Series,
-                               max_rounds: int = DEFAULT_MAX_ROUNDS) -> str | None:
+                               max_rounds: int = DEFAULT_MAX_ROUNDS,
+                               text_only: bool = False) -> str | None:
     """
     Run the two-agent loop for a single figure.
 
@@ -596,7 +940,8 @@ def generate_query_for_figure(chat: GemmaChat, row: pd.Series,
     """
     query, feedback = None, None
     for attempt in range(1, max_rounds + 1):
-        query = run_agent1(chat, row, prior_query=query, feedback=feedback)
+        query = run_agent1(chat, row, prior_query=query, feedback=feedback,
+                           text_only=text_only)
         if query is None:
             log.info("  attempt %d: Agent 1 produced no parseable query.", attempt)
             feedback = (
@@ -625,8 +970,11 @@ def load_already_done(output_tsv: str) -> set[str]:
         try:
             existing = pd.read_csv(output_tsv, sep="\t", dtype=str, keep_default_na=False)
             done = set(existing["paper_id"].tolist())
-        except Exception:
-            pass
+        except Exception as exc:
+            log.warning(
+                "Could not read existing output %s: %s — starting fresh.",
+                output_tsv, exc,
+            )
     return done
 
 
@@ -668,6 +1016,9 @@ def parse_args() -> argparse.Namespace:
                     help=f"HuggingFace model name or local path (default: {DEFAULT_MODEL}).")
     ap.add_argument("--load_in_4bit",    action="store_true",
                     help="Load the model in 4-bit quantization (requires bitsandbytes).")
+    ap.add_argument("--text_only",       action="store_true",
+                    help="Skip image loading entirely; generate queries from text context only. "
+                         "Use this as a fallback when the vision encoder causes GPU errors.")
     ap.add_argument("--seed",            type=int, default=DEFAULT_SEED,
                     help=f"Random seed for candidate selection (default: {DEFAULT_SEED}).")
     return ap.parse_args()
@@ -675,6 +1026,20 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+
+    # FIX #12: validate figures_dir early — a wrong path silently drops all
+    # candidates and exits with a confusing "no images found" message.
+    if not os.path.isdir(args.figures_dir):
+        log.error(
+            "figures_dir does not exist or is not a directory: %s", args.figures_dir
+        )
+        sys.exit(1)
+
+    # FIX #13: create the output directory if it doesn't exist, so paths like
+    # 'results/queries_200.tsv' don't crash at the open() call below.
+    output_dir = os.path.dirname(args.output_tsv)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
 
     log.info("Loading and joining TSVs ...")
     df = load_data(args.captions_tsv, args.metadata_tsv, args.ref_tsv)
@@ -684,8 +1049,26 @@ def main() -> None:
     df = attach_image_paths(df, args.figures_dir)
 
     if df.empty:
-        log.error("No candidate figures with images found on disk. Exiting.")
-        sys.exit(1)
+        if args.text_only:
+            # In text-only mode the image column isn't used; attach_image_paths drops
+            # rows with no image on disk.  Re-load without the image filter so we still
+            # have figures to process.
+            log.warning(
+                "No figures found on disk — but --text_only is set, so images are not "
+                "needed.  Re-loading all rows without the image-file filter."
+            )
+            df = load_data(args.captions_tsv, args.metadata_tsv, args.ref_tsv)
+            df["image_path"] = None
+            log.info("Text-only mode: %d candidate figures loaded.", len(df))
+            if df.empty:
+                log.error("No candidate figures found in the TSVs either. Exiting.")
+                sys.exit(1)
+        else:
+            log.error("No candidate figures with images found on disk. Exiting.")
+            sys.exit(1)
+
+    if args.text_only:
+        log.info("--text_only mode: image loading disabled, generating queries from text context only.")
 
     order = build_diverse_candidate_order(
         df,
@@ -701,11 +1084,12 @@ def main() -> None:
             len(already_done), args.output_tsv,
         )
 
-    write_header = not os.path.isfile(args.output_tsv)
-    out_f = open(args.output_tsv, "a", encoding="utf-8")
-    if write_header:
-        out_f.write("paper_id\tfigure_id\tsub_id\tquery\n")
-        out_f.flush()
+    # FIX #14: treat a zero-byte file as having no header (e.g. the script
+    # crashed after creating the file but before writing the header line).
+    write_header = (
+        not os.path.isfile(args.output_tsv)
+        or os.path.getsize(args.output_tsv) == 0
+    )
 
     n_accepted  = len(already_done)
     n_attempted = 0
@@ -713,42 +1097,53 @@ def main() -> None:
 
     chat = GemmaChat(args.model_name, load_in_4bit=args.load_in_4bit)
 
-    for idx in order:
-        if n_accepted >= args.target:
-            break
-        row = df.loc[idx]
-        if row["paper_id"] in already_done:
-            continue
+    with open(args.output_tsv, "a", encoding="utf-8") as out_f:
+        if write_header:
+            out_f.write("paper_id\tfigure_id\tsub_id\tquery\n")
+            out_f.flush()
 
-        n_attempted += 1
-        log.info(
-            "[%d/%d accepted | %d attempted | %d skipped] paper=%s figure=%s%s",
-            n_accepted, args.target, n_attempted, n_skipped,
-            row["paper_id"], row["figure_id"], row["sub_id"],
-        )
+        for idx in order:
+            if n_accepted >= args.target:
+                break
+            row = df.loc[idx]
+            if row["paper_id"] in already_done:
+                continue
 
-        try:
-            query = generate_query_for_figure(chat, row, max_rounds=args.max_rounds)
-        except Exception as e:
-            log.exception(
-                "Error processing paper=%s figure=%s: %s",
-                row["paper_id"], row["figure_id"], e,
+            n_attempted += 1
+            log.info(
+                "[%d/%d accepted | %d attempted | %d skipped] paper=%s figure=%s sub=%s",
+                n_accepted, args.target, n_attempted, n_skipped,
+                row["paper_id"], row["figure_id"], row["sub_id"],
             )
-            query = None
 
-        if query is None:
-            n_skipped += 1
-            log.info("  -> SKIPPED after %d rounds.", args.max_rounds)
-            continue
+            try:
+                query = generate_query_for_figure(chat, row, max_rounds=args.max_rounds,
+                                                  text_only=args.text_only)
+            except Exception as e:
+                # FIX #15: flush GPU cache after any error so subsequent figures
+                # don't inherit a corrupted CUDA state from a prior OOM.
+                try:
+                    import torch
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                except Exception:
+                    pass
+                log.exception(
+                    "Error processing paper=%s figure=%s: %s",
+                    row["paper_id"], row["figure_id"], e,
+                )
+                query = None
 
-        # Strip tabs and newlines so the TSV stays well-formed.
-        clean_query = re.sub(r"\s+", " ", query).strip().replace("\t", " ")
-        out_f.write(f"{row['paper_id']}\t{row['figure_id']}\t{row['sub_id']}\t{clean_query}\n")
-        out_f.flush()
-        already_done.add(row["paper_id"])
-        n_accepted += 1
+            if query is None:
+                n_skipped += 1
+                log.info("  -> SKIPPED after %d rounds.", args.max_rounds)
+                continue
 
-    out_f.close()
+            clean_query = re.sub(r"\s+", " ", query).strip().replace("\t", " ")
+            out_f.write(f"{row['paper_id']}\t{row['figure_id']}\t{row['sub_id']}\t{clean_query}\n")
+            out_f.flush()
+            already_done.add(row["paper_id"])
+            n_accepted += 1
 
     if n_accepted < args.target:
         log.warning(
