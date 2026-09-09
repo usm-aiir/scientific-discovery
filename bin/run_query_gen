@@ -67,17 +67,34 @@ else
     OUTPUT_TSV="queries_output.tsv"
 fi
 
+# FIX #5: locate the scidiscovery environment by checking known paths directly
+# instead of relying on 'conda env list', which can fail on shared systems
+# (e.g. a root-owned Anaconda that throws PermissionError before printing
+# the env list).  Checks the three most common install locations in order:
+#   1. /apps/conda/<username>/envs/  -- university/HPC servers
+#   2. ~/miniconda3/envs/            -- personal Miniconda installs
+#   3. ~/.conda/envs/                -- conda's user-writable fallback
+SCIDISCOVERY_ENV=""
+for d in "/apps/conda/${USER}/envs/scidiscovery" \
+          "$HOME/miniconda3/envs/scidiscovery" \
+          "$HOME/.conda/envs/scidiscovery"; do
+    if [ -d "$d" ]; then
+        SCIDISCOVERY_ENV="$d"
+        break
+    fi
+done
+
+if [ -z "$SCIDISCOVERY_ENV" ]; then
+    echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
+    exit 1
+fi
+
 if command -v conda &> /dev/null; then
     CONDA_CMD="conda"
 elif [ -f "$HOME/miniconda3/bin/conda" ]; then
     CONDA_CMD="$HOME/miniconda3/bin/conda"
 else
     echo "Error: conda not found. Run 'bash bin/install' first."
-    exit 1
-fi
-
-if ! "$CONDA_CMD" env list 2>/dev/null | grep -qw "scidiscovery"; then
-    echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
     exit 1
 fi
 
@@ -94,7 +111,7 @@ echo "[ Running figure query generation (Gemma) ]"
 # printed on actual success (set -e would exit the whole script on failure,
 # but we want to log a clear message before exiting).
 set +e
-"$CONDA_CMD" run --no-capture-output -n scidiscovery python3 query_generator/generate_figure_queries_gemma.py \
+"$CONDA_CMD" run --no-capture-output -p "$SCIDISCOVERY_ENV" python3 query_generator/generate_figure_queries_gemma.py \
     --captions_tsv "$CAPTIONS_TSV" \
     --metadata_tsv "$METADATA_TSV" \
     --ref_tsv      "$REF_TSV" \
