@@ -544,7 +544,13 @@ class GemmaChat:
         # device-side assert that kills the entire GPU context.  Catching this
         # on the CPU first means the figure is skipped cleanly and the GPU
         # context survives for subsequent figures.
-        vocab_size = self.model.config.vocab_size
+        # Gemma3Config nests vocab_size inside text_config; fall back to reading
+        # the embedding table shape directly so this works for any model.
+        vocab_size = (
+            getattr(self.model.config, "vocab_size", None)
+            or getattr(getattr(self.model.config, "text_config", None), "vocab_size", None)
+            or self.model.get_input_embeddings().weight.shape[0]
+        )
         max_token_id = int(inputs["input_ids"].max().item())
         if max_token_id >= vocab_size:
             raise ValueError(
