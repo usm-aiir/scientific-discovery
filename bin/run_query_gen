@@ -111,6 +111,12 @@ echo "[ Running figure query generation (Gemma) ]"
 # printed on actual success (set -e would exit the whole script on failure,
 # but we want to log a clear message before exiting).
 set +e
+# CUDA_LAUNCH_BLOCKING=1 makes GPU kernels run synchronously so that a
+# device-side assert surfaces with the actual failing operation name instead
+# of a generic "device-side assert triggered" at some later unrelated call.
+# Remove this line (or set it to 0) once the assert is resolved — sync mode
+# adds overhead and slows inference.
+export CUDA_LAUNCH_BLOCKING=1
 "$CONDA_CMD" run --no-capture-output -p "$SCIDISCOVERY_ENV" python3 query_generator/generate_figure_queries_gemma.py \
     --captions_tsv "$CAPTIONS_TSV" \
     --metadata_tsv "$METADATA_TSV" \
