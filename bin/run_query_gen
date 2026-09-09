@@ -5,6 +5,7 @@
 #
 # Author: Adah Holt (AI-IR Lab, University of Southern Maine, 2026)
 ################################################################
+set -euo pipefail   # FIX #1: exit on error, unbound vars, and pipe failures
 
 usage() {
     echo "Generates figure search queries using a local Gemma model."
@@ -26,7 +27,7 @@ usage() {
     echo "     arxiv_data/references/ref_24_10.tsv arxiv_data/figures queries_200.tsv --load_in_4bit"
 }
 
-if [[ $1 == "--help" || $1 == "-h" ]]; then
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     usage
     exit 0
 fi
@@ -34,6 +35,36 @@ fi
 if [ $# -lt 4 ]; then
     usage
     exit 1
+fi
+
+# FIX #2: validate all input paths before doing anything expensive (model load).
+CAPTIONS_TSV="$1"
+METADATA_TSV="$2"
+REF_TSV="$3"
+FIGURES_DIR="$4"
+
+errors=0
+for f in "$CAPTIONS_TSV" "$METADATA_TSV" "$REF_TSV"; do
+    if [ ! -f "$f" ]; then
+        echo "Error: file not found: $f"
+        errors=1
+    fi
+done
+if [ ! -d "$FIGURES_DIR" ]; then
+    echo "Error: figures_dir not found or not a directory: $FIGURES_DIR"
+    errors=1
+fi
+if [ "$errors" -ne 0 ]; then
+    exit 1
+fi
+
+shift 4
+
+if [[ -n "${1:-}" && "${1:-}" != --* ]]; then
+    OUTPUT_TSV="$1"
+    shift
+else
+    OUTPUT_TSV="queries_output.tsv"
 fi
 
 if command -v conda &> /dev/null; then
@@ -50,25 +81,32 @@ if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
     exit 1
 fi
 
-CAPTIONS_TSV="$1"
-METADATA_TSV="$2"
-REF_TSV="$3"
-FIGURES_DIR="$4"
-shift 4
-
-if [[ -n "$1" && "$1" != --* ]]; then
-    OUTPUT_TSV="$1"
-    shift
-else
-    OUTPUT_TSV="queries_output.tsv"
-fi
+# FIX #3: tee all output to a timestamped log file so progress is preserved
+# if the terminal session dies during a long run.
+LOG_DIR="$(dirname "$OUTPUT_TSV")"
+LOG_FILE="${LOG_DIR:-.}/query_gen_$(date +%Y%m%d_%H%M%S).log"
+mkdir -p "${LOG_DIR:-.}"
+echo "[ Logging to: $LOG_FILE ]"
 
 echo "[ Running figure query generation (Gemma) ]"
+
+# FIX #4: capture the Python exit code explicitly so "complete" is only
+# printed on actual success (set -e would exit the whole script on failure,
+# but we want to log a clear message before exiting).
+set +e
 "$CONDA_CMD" run --no-capture-output -n scidiscovery python3 query_generator/generate_figure_queries_gemma.py \
     --captions_tsv "$CAPTIONS_TSV" \
     --metadata_tsv "$METADATA_TSV" \
     --ref_tsv      "$REF_TSV" \
     --figures_dir  "$FIGURES_DIR" \
     --output_tsv   "$OUTPUT_TSV" \
-    "$@"
-echo "Query generation complete."
+    "$@" 2>&1 | tee "$LOG_FILE"
+EXIT_CODE=${PIPESTATUS[0]}
+set -e
+
+if [ "$EXIT_CODE" -ne 0 ]; then
+    echo "ERROR: query generation failed (exit code $EXIT_CODE). See log: $LOG_FILE"
+    exit "$EXIT_CODE"
+fi
+
+echo "Query generation complete. Output: $OUTPUT_TSV | Log: $LOG_FILE"
