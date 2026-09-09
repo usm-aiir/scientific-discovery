@@ -392,9 +392,31 @@ class GemmaChat:
         self.model = AutoModelForImageTextToText.from_pretrained(
             model_name,
             device_map="auto",
-            dtype=torch.float16,   # use dtype= (torch_dtype= is deprecated)
+            torch_dtype=torch.float16,  # FIX #21: torch_dtype (not dtype) is the correct kwarg;
+                                        # 'dtype' was silently ignored, leaving non-quantized params
+                                        # (vision encoder, layer norms) in bfloat16, which triggers
+                                        # a CUDA device-side assert on Turing GPUs (no bf16 support).
             **quant_kwargs,
         )
+
+        # FIX #21 (continued): After loading, cast any remaining bfloat16 tensors to float16.
+        # Some model configs set torch_dtype=bfloat16 internally; this guarantees no bf16 survives.
+        _n_bf16_cast = 0
+        for _p in self.model.parameters():
+            if _p.dtype == torch.bfloat16:
+                _p.data = _p.data.to(torch.float16)
+                _n_bf16_cast += 1
+        for _name, _buf in self.model.named_buffers():
+            if _buf.dtype == torch.bfloat16:
+                _buf.data = _buf.data.to(torch.float16)
+                _n_bf16_cast += 1
+        if _n_bf16_cast:
+            log.info(
+                "FIX #21: cast %d bfloat16 parameter/buffer tensors to float16 "
+                "(Turing GPU has no bfloat16 hardware support).", _n_bf16_cast
+            )
+        else:
+            log.info("FIX #21: model loaded cleanly in float16 — no bfloat16 tensors found.")
 
         # FIX #20: after 4-bit loading, convert vision encoder layers back to
         # float16 in-place.  bitsandbytes quantizes ALL nn.Linear layers by
@@ -419,11 +441,20 @@ class GemmaChat:
             )
             try:
                 import bitsandbytes as bnb
+                # Log every 4-bit module name so we can verify vision prefixes.
+                all_4bit = [n for n, m in self.model.named_modules()
+                            if isinstance(m, bnb.nn.Linear4bit)]
+                log.info("Total 4-bit quantized Linear layers in model: %d", len(all_4bit))
+                if all_4bit:
+                    log.info("First 10 quantized layer names: %s", all_4bit[:10])
+
                 n_dequant = 0
                 for full_name, module in list(self.model.named_modules()):
                     if not isinstance(module, bnb.nn.Linear4bit):
                         continue
-                    if not any(full_name.startswith(p) for p in _VISION_PREFIXES):
+                    # Use 'in' not 'startswith' — the model may wrap modules
+                    # under an extra 'model.' prefix (e.g. model.vision_tower.xxx)
+                    if not any(p in full_name for p in _VISION_PREFIXES):
                         continue
                     # Dequantize the 4-bit weight back to float16.
                     try:
