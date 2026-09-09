@@ -380,13 +380,36 @@ class GemmaChat:
         self.max_new_tokens = max_new_tokens
         log.info("Loading model %s ...", model_name)
 
-        quant_kwargs = {}
+        quant_kwargs: dict = {}
+        # FIX #20: when loading in 4-bit, explicitly exclude the vision encoder
+        # and its projection layer from quantization.  bitsandbytes applies 4-bit
+        # quantization to ALL nn.Linear layers by default, including those inside
+        # SigLIP (the vision encoder).  On Turing GPUs (RTX 2080 Ti, compute 7.5)
+        # the quantized vision kernels trigger a CUDA device-side assert during the
+        # first model.generate() call that processes an image, killing the GPU
+        # context permanently.  Keeping the vision components in float16 avoids
+        # this while still quantizing the (much larger) text model.
+        #
+        # Module names cover Gemma 3 multimodal and common VLM naming conventions;
+        # transformers does a prefix match so "vision_tower" also skips
+        # "vision_tower.encoder", "vision_tower.head", etc.
+        _VISION_MODULES_TO_SKIP = [
+            "vision_tower",           # Gemma 3 / LLaVA / Idefics
+            "vision_model",           # some PaliGemma variants
+            "image_encoder",          # Mistral-VL style
+            "multi_modal_projector",  # connector between vision and text
+            "mm_projector",
+            "image_newline",
+        ]
+
         if load_in_4bit:
             from transformers import BitsAndBytesConfig
             quant_kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
             )
+            # Tell transformers not to quantize vision components.
+            quant_kwargs["modules_to_not_convert"] = _VISION_MODULES_TO_SKIP
 
         self.processor = AutoProcessor.from_pretrained(model_name)
         self.model = AutoModelForImageTextToText.from_pretrained(
