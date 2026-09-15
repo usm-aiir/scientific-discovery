@@ -1,4 +1,3 @@
-cat > ~/Desktop/scientific-discovery/test_colpali.py << 'EOF'
 from sentence_transformers import MultiVectorEncoder
 from pathlib import Path
 import glob, json
@@ -22,6 +21,3 @@ for entry in test_queries[:5]:
     best_idx = scores.argmax()
     print(f"\nQuery: {entry['query'][:80]}...")
     print(f"  Best match: {Path(all_images[best_idx]).name}  score={scores[best_idx]:.3f}")
-EOF
-
-python ~/Desktop/scientific-discovery/test_colpali.py
