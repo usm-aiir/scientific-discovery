@@ -4,7 +4,7 @@ import glob, json, csv
 
 model = MultiVectorEncoder("vidore/colqwen2.5-v0.2")
 
-with open("/mnt/netstore1_home/behrooz.mansouri/SIGIRSciDis/figureGen/figure_query_output/Test.json") as f:
+with open("/mnt/netstore1_home/behrooz.mansouri/SIGIRSciDis/figureGen/figure_query_output/Test.json", encoding="utf-8") as f:
     test_queries = json.load(f)
 
 all_images = glob.glob("/mnt/netstore1_home/behrooz.mansouri/SIGIRSciDis/25_04/figures/images/*.png")
@@ -19,7 +19,7 @@ doc_embeddings = model.encode_document(all_images)
 print("Done encoding.")
 
 output_path = "/home/adah.holt/scientific-discovery/ret_result.tsv"
-with open(output_path, "w", newline="") as f:
+with open(output_path, "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f, delimiter="\t")
     writer.writerow(["query_id", "0", "fig_id", "rank", "relevance"])
 
