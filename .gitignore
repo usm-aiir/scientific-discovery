@@ -1,3 +1,4 @@
+# Objective: Keep datasets, model artifacts, and local tooling out of Git.
 arxiv_data/
 __pycache__/
 *.pyc
@@ -8,3 +9,20 @@ queries_01_output.tsv
 sampled_tables_01.tsv
 *_output.tsv
 sampled_*.tsv
+results/
+.pytest_cache/
+.agents/
+.codex/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.log
+*.pkl
+*.npy
+*.npz
+*.pt
+*.pth
+*.safetensors
+.DS_Store

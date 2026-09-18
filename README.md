@@ -1,168 +1,76 @@
 # Scientific Discovery
 
-A multimodal scientific discovery system that integrates figure search, table search, and text search into a single agentic RAG pipeline. Given a natural-language query, an LLM-driven controller routes to the appropriate modality, formulates sub-queries, invokes the retrieval systems, and combines the retrieved evidence into a grounded answer with explicit citations back to the source figures, tables, and text.
+Table retrieval with BM25 and a BERT + TAPAS dense retriever. Both search the
+same corpus and are evaluated using Recall@10 on the validation queries.
 
-## Project Context
-
-This repository contains the full system across all modalities. Currently implemented: **figure and table retrieval** — scraping arXiv content, sampling representative figures and tables, generating retrieval queries, and evaluating baseline retrieval performance. Text retrieval and the agentic controller are under active development.
-
-## Repository Structure
-
-scrapers/ Tools for collecting figures, tables, captions, and metadata
-from ar5ive (the web-rendered version of arXiv papers)
-
-query_generator/ Utilities for generating retrieval queries from collected figures,
-using a local Gemma model with a two-agent Author/Reviewer loop
-
-bin/ Shell scripts for running the full pipeline
-evaluate_clip_retrieval.py Evaluates CLIP text-to-image retrieval against ground-truth queries
-
+BM25 code is in `table_retrieval/baseline/`, DTR is in `table_retrieval/DTR/`,
+and data loading and evaluation are shared.
 
 ## Setup
 
-Clone the repository and run the installer, which creates and populates the `scidiscovery` conda environment automatically:
+Run from the repository root with Conda installed:
 
 ```bash
-git clone <repository-url>
-cd scientific-discovery
-bin/install
+conda env create -f environment.yml
+conda activate scidiscovery
 ```
 
-## Usage
+This installs the libraries in `requirements.txt`. Model weights download on
+first use. DTR commands below use a CUDA GPU; use `--device cpu` if needed.
 
-### Scrape arXiv figures and metadata
+## Data
 
-Scrapes figures, captions, references, and metadata for a given month in a single pass:
+Place `Corpus.json`, `Train.json`, `Train_table_qrels.tsv`, `Val.json`, and
+`Val_table_qrels.tsv` in:
+
+```text
+arxiv_data/SIGIRSciDis/tableGen/table_query_output/
+```
+
+The corpus contains table contents, query files contain query text, and qrels
+identify relevant tables. The dataset must be obtained separately.
+
+## BM25
 
 ```bash
-bin/run_figure_scrape <year> <month> [--max-papers N] [--start-id N]
+python -m table_retrieval.baseline.run
+python -m table_retrieval.evaluate
 ```
+
+Indexes the corpus and retrieves 10 tables per validation query. Rankings are
+saved to `results/bm25_val.run` and scores to `results/bm25_val.metrics.json`.
+
+## DTR
+
+Run these commands in order:
 
 ```bash
-bin/run_figure_scrape 24 10               # scrape all of October 2024
-bin/run_figure_scrape 24 10 --max-papers 5  # first 5 papers only (for testing)
-bin/run_figure_scrape 24 10 --start-id 200  # resume from paper 00200
+python -m table_retrieval.DTR.train --device cuda
+python -m table_retrieval.DTR.index --device cuda
+python -m table_retrieval.DTR.run --device cuda
+python -m table_retrieval.evaluate \
+  --run results/dtr_val.run \
+  --output results/dtr_val.metrics.json
 ```
 
-Output:
+Training fine-tunes BERT and TAPAS on training queries and judgments for 3 epochs
+(batch size 4, seed 42). Indexing encodes the corpus; retrieval returns 10 tables
+per validation query. Test queries and judgments are not used.
 
-arxiv_data/figures/<yy>/<mm>/<paper_id>/*.png
-arxiv_data/captions/<year><month>.tsv
-arxiv_data/references/ref<year><month>.tsv
-arxiv_data/figure_metadata<year>_<month>.tsv
+Models are saved in `results/dtr_model/`, embeddings in `results/dtr_index/`,
+and rankings and scores in `results/dtr_val.run` and `results/dtr_val.metrics.json`.
+Training and indexing require new or empty output folders. Training saves only
+at completion. Skip training and indexing when reusing a completed model and index.
 
+TAPAS inputs are limited to 512 tokens, so large tables are truncated. Unlike
+BM25, DTR includes paper titles.
 
-### Scrape arXiv tables
+## Current results
 
-Scrapes tables, captions, cell grids, footnotes, and in-text references:
+Evaluated on 63,021 tables and 250 validation queries, retrieving 10 tables per query.
 
-```bash
-bin/run_table_scrape <year> <month> [--max-papers N] [--start-id N]
-```
-
-```bash
-bin/run_table_scrape 24 10
-bin/run_table_scrape 24 10 --max-papers 5
-```
-
-Output:
-
-arxiv_data/tables/<year><month>.jsonl
-arxiv_data/table_metadata<year>_<month>.tsv
-
-
-### Sample figures
-
-Draws a reproducible stratified random sample of 200 figures across arXiv categories:
-
-```bash
-bin/run_figure_sample <year> <month> [--data_dir DIR] [--output_tsv FILE]
-```
-
-```bash
-bin/run_figure_sample 24 10
-bin/run_figure_sample 24 10 --output_tsv results/sampled_24_10.tsv
-```
-
-Output: `<year><month>_sampled_figures.tsv` (default)
-
-### Sample tables
-
-Draws a reproducible stratified random sample of 200 tables, merging table and metadata outputs:
-
-```bash
-bin/run_table_sample <year> <month> [--data_dir DIR] [--output_tsv FILE]
-```
-
-```bash
-bin/run_table_sample 24 10
-bin/run_table_sample 24 10 --output_tsv results/sampled_24_10.tsv
-```
-
-Output: `<year><month>_sampled_tables.tsv` (default)
-
-### Generate figure queries
-
-Generates a retrieval query per figure using a local Gemma model. Uses a two-agent loop: an **Author** agent drafts a query grounded in the figure image and context; a **Reviewer** agent accepts it or returns feedback for revision. Runs up to 3 rounds per figure, writing accepted queries incrementally so the run is safely resumable.
-
-```bash
-bin/run_query_gen <captions_tsv> <metadata_tsv> <ref_tsv> <figures_dir> \
-    [output_tsv] [--load_in_4bit] [--model_name NAME]
-```
-
-```bash
-bin/run_query_gen \
-  arxiv_data/captions/25_01.tsv \
-  arxiv_data/figure_metadata_25_01.tsv \
-  arxiv_data/references/ref_25_01.tsv \
-  arxiv_data/figures \
-  queries_25_01.tsv \
-  --model_name google/gemma-3-4b-it
-```
-
-Output: `queries_output.tsv` (default) — one accepted query per figure, with `paper_id`, `figure_id`, `sub_id`, and `query` columns. A timestamped log file is written alongside the output for long-running jobs.
-
-### Evaluate CLIP retrieval (baseline)
-
-Evaluates CLIP text-to-image retrieval against ground-truth queries, reporting Recall@1/5/10 and MRR:
-
-```bash
-python evaluate_clip_retrieval.py \
-    --queries_tsv claude_figure_queries.tsv \
-    --cache /path/to/clip_embeddings.pkl
-```
-
-**Baseline results (October 2024, 187,851 figures, openai/clip-vit-large-patch14):**
-
-| Metric     | Score  |
-|------------|--------|
-| Recall@1   | 0.0%   |
-| Recall@5   | 0.3%   |
-| Recall@10  | 0.5%   |
-| MRR        | 0.0023 |
-
-Vanilla CLIP performs near-randomly on scientific figures, establishing the baseline this project aims to improve on.
-
-## Environments
-
-The pipeline uses two conda environments:
-
-**`scidiscovery`** — used for scraping, sampling, and query generation. Created automatically by the installer:
-
-```bash
-bin/install
-```
-
-**`llm2vecenv`** — used only for CLIP retrieval evaluation. Pre-installed on the HPC cluster at `/apps/conda/adah.holt/envs/llm2vecenv`. To recreate on a new machine:
-
-```bash
-conda env create -f environment_llm2vec.yml
-conda activate llm2vecenv
-```
-
-## Purpose
-
-To provide the figure and table retrieval foundation for a multimodal scientific discovery system — a RAG pipeline that routes natural-language queries across text, table, and image modalities and returns grounded, attributable answers.
-ENDOFFILE
-
+| Method | Recall@10 |
+| --- | ---: |
+| BM25 | 79.20% |
+| DTR (BERT + TAPAS) | 37.05% |
 
