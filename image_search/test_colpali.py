@@ -1,5 +1,6 @@
 from sentence_transformers import MultiVectorEncoder
 from pathlib import Path
+from PIL import Image
 import glob, json, csv
 
 model = MultiVectorEncoder("vidore/colqwen2.5-v0.2")
@@ -7,15 +8,29 @@ model = MultiVectorEncoder("vidore/colqwen2.5-v0.2")
 with open("/mnt/netstore1_home/behrooz.mansouri/SIGIRSciDis/figureGen/figure_query_output/Test.json", encoding="utf-8") as f:
     test_queries = json.load(f)
 
-all_images = glob.glob("/mnt/netstore1_home/behrooz.mansouri/SIGIRSciDis/25_04/figures/images/*.png")
-print(f"Corpus: {len(all_images)} images")
+all_image_paths = glob.glob("/mnt/netstore1_home/behrooz.mansouri/SIGIRSciDis/25_04/figures/images/*.png")
+print(f"Found {len(all_image_paths)} image files")
+
+# Filter out corrupt/invalid images
+print("Validating images (filtering bad files)...")
+valid_image_paths = []
+skipped = 0
+for path in all_image_paths:
+    try:
+        img = Image.open(path)
+        img.verify()  # fast check — catches corrupt/wrong-format files
+        valid_image_paths.append(path)
+    except Exception:
+        skipped += 1
+
+print(f"Valid: {len(valid_image_paths)}, Skipped (corrupt): {skipped}")
 
 def uid_to_stem(uid):
     parts = uid.split("::")
     return f"{parts[0]}_{parts[-1].lstrip('F')}"
 
 print("Encoding corpus...")
-doc_embeddings = model.encode_document(all_images)
+doc_embeddings = model.encode_document(valid_image_paths)
 print("Done encoding.")
 
 output_path = "/home/adah.holt/scientific-discovery/ret_result.tsv"
@@ -32,7 +47,7 @@ with open(output_path, "w", newline="", encoding="utf-8") as f:
         ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:100]
 
         for rank, idx in enumerate(ranked, start=1):
-            fig_stem = Path(all_images[idx]).stem
+            fig_stem = Path(valid_image_paths[idx]).stem
             relevance = 2 if fig_stem in ground_truth else 0
             writer.writerow([query_id, 0, fig_stem, rank, relevance])
 
