@@ -4,7 +4,7 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 from sentence_transformers import MultiVectorEncoder
 from pathlib import Path
 from PIL import Image
-import glob, json, csv, numpy as np, torch
+import glob, json, csv, torch
 
 model = MultiVectorEncoder("vidore/colqwen2.5-v0.2")
 
@@ -19,7 +19,7 @@ def uid_to_stem(uid):
     return f"{parts[0]}_{parts[-1].lstrip('F')}"
 
 BATCH_SIZE = 8
-all_embeddings = []
+doc_embeddings = []   # list of per-image tensors (ColPali multi-vector format)
 final_image_paths = []
 skipped = 0
 
@@ -41,7 +41,9 @@ for i in range(0, len(all_image_paths), BATCH_SIZE):
     if batch_pil:
         try:
             batch_emb = model.encode_document(batch_pil)
-            all_embeddings.append(np.array(batch_emb))
+            # batch_emb is a list of tensors, one per image — move each to CPU
+            for emb in batch_emb:
+                doc_embeddings.append(emb.cpu() if isinstance(emb, torch.Tensor) else emb)
             final_image_paths.extend(batch_valid_paths)
         except Exception as e:
             print(f"  Batch {i//BATCH_SIZE} failed: {e}, skipping {len(batch_pil)} images")
@@ -54,7 +56,6 @@ for i in range(0, len(all_image_paths), BATCH_SIZE):
         print(f"  Encoded {len(final_image_paths)} images so far ({skipped} skipped)...")
 
 print(f"Done encoding. Valid: {len(final_image_paths)}, Skipped: {skipped}")
-doc_embeddings = np.vstack(all_embeddings)
 
 output_path = "/home/adah.holt/scientific-discovery/ret_result.tsv"
 with open(output_path, "w", newline="", encoding="utf-8") as f:
