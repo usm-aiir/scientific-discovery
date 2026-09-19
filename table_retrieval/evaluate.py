@@ -78,13 +78,18 @@ def evaluate(run_path, qrels_path, query_ids, k=10, min_grade=1):
 def main():
     """Evaluate a run using the full query list as the evaluation population."""
     parser = argparse.ArgumentParser(description="Evaluate TREC table rankings")
-    parser.add_argument("--run", type=Path, default=Path("results/bm25_val.run"))
+    parser.add_argument("method", nargs="?", choices=("bm25", "dtr"), default="bm25",
+                        help="retriever to evaluate (default: bm25)")
+    parser.add_argument("--run", type=Path, help="override the selected retriever's run file")
     parser.add_argument("--qrels", type=Path, default=DATA / "Val_table_qrels.tsv")
     parser.add_argument("--queries", type=Path, default=DATA / "Val.json")
     parser.add_argument("--k", type=int, default=10)
     parser.add_argument("--min-grade", type=int, default=1)
-    parser.add_argument("--output", type=Path, default=Path("results/bm25_val.metrics.json"))
+    parser.add_argument("--output", type=Path,
+                        help="metrics file (default: run path with .metrics.json suffix)")
     args = parser.parse_args()
+    args.run = args.run if args.run is not None else Path(f"results/{args.method}_val.run")
+    args.output = args.output if args.output is not None else args.run.with_suffix(".metrics.json")
     report = evaluate(args.run, args.qrels,
                       [q["query_id"] for q in load_json(args.queries)], args.k, args.min_grade)
     args.output.parent.mkdir(parents=True, exist_ok=True)
