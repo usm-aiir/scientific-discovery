@@ -48,9 +48,7 @@ Run these commands in order:
 python -m table_retrieval.DTR.train --device cuda
 python -m table_retrieval.DTR.index --device cuda
 python -m table_retrieval.DTR.run --device cuda
-python -m table_retrieval.evaluate \
-  --run results/dtr_val.run \
-  --output results/dtr_val.metrics.json
+python -m table_retrieval.evaluate dtr
 ```
 
 Training fine-tunes BERT and TAPAS on training queries and judgments for 3 epochs
@@ -73,4 +71,3 @@ Evaluated on 63,021 tables and 250 validation queries, retrieving 10 tables per 
 | --- | ---: |
 | BM25 | 79.20% |
 | DTR (BERT + TAPAS) | 37.05% |
-
