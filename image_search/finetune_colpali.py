@@ -2,6 +2,7 @@ import os
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 from colpali_engine.models import ColQwen2_5, ColQwen2_5_Processor
+from peft import get_peft_model, LoraConfig
 from PIL import Image
 from pathlib import Path
 import json, torch, torch.nn.functional as F
@@ -12,9 +13,9 @@ FIGURE_DIR = "/mnt/netstore1_home/behrooz.mansouri/SIGIRSciDis/25_04/figures/ima
 DATA_DIR   = "/mnt/netstore1_home/behrooz.mansouri/SIGIRSciDis/figureGen/figure_query_output"
 OUTPUT_DIR = "/home/adah.holt/scientific-discovery/colpali-finetuned"
 MODEL_NAME = "vidore/colqwen2.5-v0.2"
-BATCH_SIZE = 4
+BATCH_SIZE = 2
 EPOCHS     = 1
-LR         = 1e-5
+LR         = 1e-4
 
 def uid_to_path(uid):
     parts = uid.split("::")
@@ -50,11 +51,21 @@ val_pairs   = load_pairs(f"{DATA_DIR}/Val.json")
 train_loader = DataLoader(PairDataset(train_pairs), batch_size=BATCH_SIZE, shuffle=True)
 val_loader   = DataLoader(PairDataset(val_pairs),   batch_size=BATCH_SIZE, shuffle=False)
 
-print("Loading model...")
-device    = torch.device("cuda")
-model     = ColQwen2_5.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16).to(device)
-model.requires_grad_(True)
+print("Loading model with LoRA...")
+device = torch.device("cuda")
+model  = ColQwen2_5.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16).to(device)
+
+lora_config = LoraConfig(
+    r=16,
+    lora_alpha=32,
+    target_modules=["q_proj", "v_proj"],
+    lora_dropout=0.05,
+    bias="none",
+)
+model = get_peft_model(model, lora_config)
+model.print_trainable_parameters()
 model.train()
+
 processor = ColQwen2_5_Processor.from_pretrained(MODEL_NAME)
 optimizer = AdamW(model.parameters(), lr=LR)
 
