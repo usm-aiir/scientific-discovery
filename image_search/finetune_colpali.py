@@ -51,8 +51,10 @@ train_loader = DataLoader(PairDataset(train_pairs), batch_size=BATCH_SIZE, shuff
 val_loader   = DataLoader(PairDataset(val_pairs),   batch_size=BATCH_SIZE, shuffle=False)
 
 print("Loading model...")
-device = torch.device("cuda")
-model  = ColQwen2_5.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16).to(device)
+device    = torch.device("cuda")
+model     = ColQwen2_5.from_pretrained(MODEL_NAME, torch_dtype=torch.bfloat16).to(device)
+model.requires_grad_(True)
+model.train()
 processor = ColQwen2_5_Processor.from_pretrained(MODEL_NAME)
 optimizer = AdamW(model.parameters(), lr=LR)
 
@@ -75,7 +77,7 @@ def run_epoch(loader, train=True):
             try:
                 images.append(Image.open(p).convert("RGB"))
             except Exception:
-                images.append(Image.new("RGB", (224, 224)))  # blank fallback
+                images.append(Image.new("RGB", (224, 224)))
 
         q_inputs = processor.process_queries(list(queries))
         q_inputs = {k: v.to(device) for k, v in q_inputs.items()}
