@@ -85,13 +85,6 @@ def filename_to_qrels_id(stem):
     '<paper>_<digits>[_<panel>...]' pattern, so this is a safe no-op for
     corpora that don't follow this convention.
     """
-    parts = stem.split("_")
-    if len(parts) >= 2 and parts[1].isdigit():
-        paper, fignum, rest = parts[0], parts[1], parts[2:]
-        qid = f"{paper}::F{fignum}"
-        if rest:
-            qid += "::" + "::".join(rest)
-        return qid
     return stem
 
 
