@@ -42,7 +42,7 @@ EXTRA_ARGS="$@"
 
 PYTHON=$(conda run -n scidiscovery which python3 2>/dev/null)
 if [ -z "$PYTHON" ]; then
-    echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
+    echo "Error: scidiscovery environment not found. Run 'bash bin/install --tools' first."
     exit 1
 fi
 

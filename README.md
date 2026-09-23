@@ -1,73 +1,108 @@
-# Scientific Discovery
+# Scientific Table Retrieval
 
-Table retrieval with BM25 and a BERT + TAPAS dense retriever. Both search the
-same corpus and are evaluated using Recall@10 on the validation queries.
+This project retrieves scientific tables using:
 
-BM25 code is in `table_retrieval/baseline/`, DTR is in `table_retrieval/DTR/`,
-and data loading and evaluation are shared.
+- BM25
+- Pretrained BGE-M3
+- Fine-tuned TAPAS
+- BM25 + BGE-M3 fusion
+
+The best-performing approach is BM25 + BGE-M3 fusion:
+
+| Split | Recall@10 |
+| --- | --- |
+| Validation | 90.44% |
+| Test | 89.02% |
 
 ## Setup
 
-Run from the repository root with Conda installed:
+```bash
+bash bin/install
+conda activate table-dtr
+```
+
+The existing scraping, query-generation, and image-search tools use a separate
+optional environment name. Both installers use the same `requirements.txt`:
 
 ```bash
-conda env create -f environment.yml
+bash bin/install --tools
 conda activate scidiscovery
 ```
 
-This installs the libraries in `requirements.txt`. Model weights download on
-first use. DTR commands below use a CUDA GPU; use `--device cpu` if needed.
-
 ## Data
 
-Place `Corpus.json`, `Train.json`, `Train_table_qrels.tsv`, `Val.json`, and
-`Val_table_qrels.tsv` in:
+Place the following files in:
 
 ```text
 arxiv_data/SIGIRSciDis/tableGen/table_query_output/
 ```
 
-The corpus contains table contents, query files contain query text, and qrels
-identify relevant tables. The dataset must be obtained separately.
-
-## BM25
-
-```bash
-python -m table_retrieval.baseline.run
-python -m table_retrieval.evaluate
+```text
+Corpus.json
+Val.json
+Val_table_qrels.tsv
+Test.json
+Test_table_qrels.INSTRUCTOR_ONLY.tsv
 ```
 
-Indexes the corpus and retrieves 10 tables per validation query. Rankings are
-saved to `results/bm25_val.run` and scores to `results/bm25_val.metrics.json`.
+Reproducing the TAPAS training experiment also requires:
 
-## DTR
-
-Run these commands in order:
-
-```bash
-python -m table_retrieval.DTR.train --device cuda
-python -m table_retrieval.DTR.index --device cuda
-python -m table_retrieval.DTR.run --device cuda
-python -m table_retrieval.evaluate dtr
+```text
+Train.json
+Train_table_qrels.tsv
 ```
 
-Training fine-tunes BERT and TAPAS on training queries and judgments for 3 epochs
-(batch size 4, seed 42). Indexing encodes the corpus; retrieval returns 10 tables
-per validation query. Test queries and judgments are not used.
+Data, model weights, indexes, and generated rankings are not included in Git.
 
-Models are saved in `results/dtr_model/`, embeddings in `results/dtr_index/`,
-and rankings and scores in `results/dtr_val.run` and `results/dtr_val.metrics.json`.
-Training and indexing require new or empty output folders. Training saves only
-at completion. Skip training and indexing when reusing a completed model and index.
+## Run retrieval
 
-TAPAS inputs are limited to 512 tokens, so large tables are truncated. Unlike
-BM25, DTR includes paper titles.
+Run the recommended fusion model on validation:
 
-## Current results
+```bash
+python -m table_retrieval --model fusion --split val
+```
 
-Evaluated on 63,021 tables and 250 validation queries, retrieving 10 tables per query.
+Run it on test after completing validation:
 
-| Method | Recall@10 |
-| --- | ---: |
-| BM25 | 79.20% |
-| DTR (BERT + TAPAS) | 37.05% |
+```bash
+python -m table_retrieval --model fusion --split test
+```
+
+To reproduce an individual model result, replace `fusion` with `bm25`, `bge`, or `tapas`:
+
+```bash
+python -m table_retrieval --model bge --split val
+```
+
+TAPAS retrieval requires a trained checkpoint. Its training code is retained for experiment reproduction.
+
+Running the package without arguments displays help:
+
+```bash
+python -m table_retrieval
+```
+
+## Repository structure
+
+```text
+table_retrieval/
+├── __main__.py
+├── data.py
+├── pipeline.py
+├── fusion.py
+├── evaluation.py
+├── settings.json
+├── retrievers/
+│   ├── bm25.py
+│   ├── bge.py
+│   └── tapas.py
+└── training/
+    ├── tapas.py
+    └── convert.py
+```
+
+- `pipeline.py` runs the complete retrieval workflow.
+- `retrievers/` contains the model-specific retrieval code.
+- `fusion.py` combines BM25 and BGE-M3 results.
+- `evaluation.py` calculates retrieval metrics.
+- `training/` contains the research-only TAPAS training code.

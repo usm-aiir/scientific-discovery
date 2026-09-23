@@ -1,0 +1,37 @@
+{
+  "device": "auto",
+  "batch_size": 2,
+  "data": "arxiv_data/SIGIRSciDis/tableGen/table_query_output",
+  "validation_output": "results/bge_comparison",
+  "test_output": "results/bge_test",
+  "model": "BAAI/bge-m3",
+  "revision": "5617a9f61b028005a4858fdac845db406aefb181",
+  "max_length": 2048,
+  "candidate_depth": 100,
+  "tapas": {
+    "checkpoint": "results/dtr_paper/trained/best",
+    "index": "results/dtr_paper/index",
+    "run": "results/dtr_paper/val.run",
+    "eval_batch_size": 8,
+    "training": {
+      "model": "results/dtr_paper/pretrained",
+      "output": "results/dtr_paper/trained",
+      "batch_size": 8,
+      "eval_every": 250,
+      "eval_batch_size": 8,
+      "max_steps": 200000,
+      "patience": 5,
+      "learning_rate": 1.25e-05,
+      "warmup_ratio": 0.01,
+      "dropout": 0.2,
+      "gradient_checkpointing": true,
+      "seed": 42,
+      "negative_run": null
+    }
+  },
+  "top_k": 10,
+  "output_root": "outputs",
+  "fusion": {
+    "constant": 60
+  }
+}

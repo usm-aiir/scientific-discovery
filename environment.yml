@@ -1,5 +1,4 @@
-# Objective: Create one shared environment for all scientific-discovery tools.
-name: scidiscovery
+name: table-dtr
 channels:
   - conda-forge
   - nodefaults
