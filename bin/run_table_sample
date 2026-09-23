@@ -42,12 +42,12 @@ if command -v conda &> /dev/null; then
 elif [ -f "$HOME/miniconda3/bin/conda" ]; then
     CONDA_CMD="$HOME/miniconda3/bin/conda"
 else
-    echo "Error: conda not found. Run 'bash bin/install' first."
+    echo "Error: conda not found. Run 'bash bin/install --tools' first."
     exit 1
 fi
 
 if ! "$CONDA_CMD" env list | grep -qw "scidiscovery"; then
-    echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
+    echo "Error: scidiscovery environment not found. Run 'bash bin/install --tools' first."
     exit 1
 fi
 

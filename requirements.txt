@@ -1,9 +1,13 @@
-# Objective: Install shared dependencies for retrieval, scraping, and query generation.
+# Shared dependencies for table retrieval, scraping, and query generation.
 torch==2.5.1
 torchvision==0.20.1
 transformers==4.51.3
+tokenizers==0.21.4
+huggingface-hub==0.36.2
 numpy==1.26.4
 pandas==2.1.4
+safetensors==0.8.0
+tqdm==4.70.1
 accelerate==1.2.1
 bitsandbytes==0.46.1
 beautifulsoup4==4.12.3
@@ -11,4 +15,3 @@ Pillow==11.1.0
 requests==2.32.3
 sentencepiece==0.2.0
 protobuf==5.29.3
-tqdm==4.67.1

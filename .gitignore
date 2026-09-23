@@ -26,3 +26,19 @@ venv/
 *.pth
 *.safetensors
 .DS_Store
+# Downloaded model weights, checkpoints, and local package/build caches.
+*.bin
+*.ckpt*
+.cache/
+*.egg-info/
+build/
+dist/
+outputs/
+local_docs/
+
+# Local correctness and regression tests.
+/table_retrieval/tests/
+
+# Historical model smoke tests remain local.
+/image_search/test_colpali.py
+/test_colpali.py

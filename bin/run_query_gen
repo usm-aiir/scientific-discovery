@@ -87,7 +87,7 @@ for d in "/apps/conda/${USER}/envs/scidiscovery" \
 done
 
 if [ -z "$SCIDISCOVERY_ENV" ]; then
-    echo "Error: scidiscovery environment not found. Run 'bash bin/install' first."
+    echo "Error: scidiscovery environment not found. Run 'bash bin/install --tools' first."
     exit 1
 fi
 
@@ -96,7 +96,7 @@ if command -v conda &> /dev/null; then
 elif [ -f "$HOME/miniconda3/bin/conda" ]; then
     CONDA_CMD="$HOME/miniconda3/bin/conda"
 else
-    echo "Error: conda not found. Run 'bash bin/install' first."
+    echo "Error: conda not found. Run 'bash bin/install --tools' first."
     exit 1
 fi
 

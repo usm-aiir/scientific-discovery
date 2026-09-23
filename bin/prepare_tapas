@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# TAPAS checkpoint conversion; not needed for BGE-M3.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+if [ -f results/dtr_paper/pretrained/retriever.json ]; then
+  echo 'Converted checkpoint already exists; leaving it unchanged.'
+  exit 0
+fi
+python - <<'PY'
+from pathlib import Path
+import urllib.request
+import zipfile
+root = Path('results/dtr_paper')
+archive = root / 'downloads/tapas_dual_encoder_proj_256_large.zip'
+archive.parent.mkdir(parents=True, exist_ok=True)
+if not archive.exists():
+    print('Downloading the official TAPAS archive (about 7.4 GB)...', flush=True)
+    temporary = archive.with_suffix('.part')
+    urllib.request.urlretrieve('https://storage.googleapis.com/tapas_models/2021_04_27/' + archive.name, temporary)
+    temporary.replace(archive)
+source = root / 'source'
+source.mkdir(exist_ok=True)
+if not (source / 'tapas_dual_encoder_proj_256_large/bert_config.json').exists():
+    with zipfile.ZipFile(archive) as contents:
+        for member in contents.infolist():
+            if not (source / member.filename).resolve().is_relative_to(source.resolve()):
+                raise ValueError('Unsafe archive member')
+        contents.extractall(source)
+PY
+python -m venv --system-site-packages results/dtr_paper/conversion_env
+results/dtr_paper/conversion_env/bin/python -m pip install tensorflow-cpu==2.15.1 tf-slim==1.1.0
+OMP_NUM_THREADS=4 results/dtr_paper/conversion_env/bin/python -m table_retrieval.training.convert \
+  --source results/dtr_paper/source/tapas_dual_encoder_proj_256_large
