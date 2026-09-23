@@ -11,7 +11,9 @@ conda environments.
 import csv
 import json
 import math
+
 from pathlib import Path
+from ranx import Qrels, Run, evaluate, compare
 
 from PIL import Image, ImageFile, PngImagePlugin
 
@@ -115,7 +117,7 @@ def canonical_doc_items(image_dir, image_paths=None):
         if doc_id == stem:
             rel = p.relative_to(image_dir).with_suffix("")
             if len(rel.parts) > 1:
-                doc_id = "::".join(rel.parts)
+                doc_id = "_".join(rel.parts)
         if doc_id in seen:
             dupes += 1
             continue
