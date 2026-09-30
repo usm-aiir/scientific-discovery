@@ -1,9 +1,8 @@
 from groundingdino.util.inference import load_model, load_image, predict, annotate
 import cv2
 
-# pick any image from your corpus
-IMAGE_PATH = "/home/adah.holt/scientific-discovery/2504.00002_1.png"
-TEXT_PROMPT = "chart . bar . axis . legend . table . plot . figure"
+IMAGE_PATH = "/home/adah.holt/scientific-discovery/2504.00002_7.png"
+TEXT_PROMPT = "legend . axis label . data point . trend line . title . scatter plot . x axis . y axis"
 
 model = load_model(
     "GroundingDINO/groundingdino/config/GroundingDINO_SwinT_OGC.py",
@@ -16,8 +15,8 @@ boxes, logits, phrases = predict(
     model=model,
     image=image,
     caption=TEXT_PROMPT,
-    box_threshold=0.3,
-    text_threshold=0.25
+    box_threshold=0.20,
+    text_threshold=0.15
 )
 
 print("Detected:", phrases)
