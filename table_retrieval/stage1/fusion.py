@@ -1,9 +1,12 @@
-"""Combine saved lexical and dense rankings using reciprocal rank fusion."""
-from .data import load_json, read_run, load_queries, check_id
+"""Combine BM25 and BGE retrieval results using Reciprocal Rank Fusion.
+
+Assigns a score based on each table's rank in both methods, combines the scores,
+and returns a single ranked list of tables."""
+from ..data import load_json, read_run, load_queries, check_id
 from collections import defaultdict
 
 def fuse(first, second, depth=100, constant=60):
-    """Equal-weight RRF; absent candidates contribute zero; IDs break ties."""
+    """Combine both rankings equally, give missing tables no score, and use table IDs to break ties."""
     scores = defaultdict(float)
     for hits in (first, second):
         for rank, (uid, _) in enumerate(hits[:depth], 1):

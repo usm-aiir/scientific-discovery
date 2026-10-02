@@ -1,13 +1,17 @@
-"""Frozen BGE-M3 encoding and exact dense search."""
-from ..data import load_queries, check_id
-from . import rank_tables
+"""
+BGE-M3 dense retrieval and search.
+
+Encodes tables and queries with a frozen BGE-M3 model, builds a dense
+embedding index, and performs exact similarity search for ranked retrieval.
+"""
+from .ranking import rank_tables
 from pathlib import Path
 import numpy as np
 import torch
 from torch.nn import functional as F
 from transformers import AutoModel, AutoTokenizer
 from tqdm.auto import tqdm
-from ..data import load_json, digest, write_json
+from ...data import check_id, digest, load_json, load_queries, write_json
 
 CACHE = Path('results/model_cache')
 
@@ -54,37 +58,53 @@ def index_bge(args):
                'precision': 'fp16' if args.device.startswith('cuda') else 'fp32'})
 
 
-def search(args):
-    from transformers import AutoTokenizer
-    from tqdm.auto import tqdm
-    manifest = load_json(args.output / 'prepared.json')
-    metadata = load_json(args.output / 'index.json')
-    if metadata['prepared_sha256'] != digest(args.output / 'prepared.json'):
+def load_search_index(output, device):
+    """Load a reusable dense search resource, independent of query files."""
+    manifest = load_json(output / 'prepared.json')
+    metadata = load_json(output / 'index.json')
+    if metadata['prepared_sha256'] != digest(output / 'prepared.json'):
         raise ValueError('Index and prepared manifest differ')
-    if digest(manifest['qrels']) != manifest['qrels_sha256']:
-        raise ValueError('Judgments changed since preparation')
-    if (digest(args.output / 'table_ids.json') != manifest['ids_sha256'] or
-            digest(args.output / 'queries.json') != manifest['saved_queries_sha256']):
-        raise ValueError('Prepared table IDs or queries changed')
-    ids, queries = load_json(args.output / 'table_ids.json'), load_queries(args.output / 'queries.json')
-    vectors = np.load(args.output / 'embeddings.npy', mmap_mode='r', allow_pickle=False)
+    if digest(output / 'table_ids.json') != manifest['ids_sha256']:
+        raise ValueError('Prepared table IDs changed')
+    ids = load_json(output / 'table_ids.json')
+    vectors = np.load(output / 'embeddings.npy', mmap_mode='r', allow_pickle=False)
     if vectors.shape != (len(ids), metadata['dimension']) or not np.isfinite(vectors).all():
         raise ValueError('Invalid dense index')
-    tokenizer = AutoTokenizer.from_pretrained(args.output / 'tokenizer')
-    model = load_model(manifest, args.device)
-    ranks = {}
-    query_clipped = []
+    tokenizer = AutoTokenizer.from_pretrained(output / 'tokenizer')
+    model = load_model(manifest, device)
+    return manifest, ids, vectors, tokenizer, model, device
+
+
+def search_texts(resource, texts, top_k):
+    """Search arbitrary text using the same query encoding as batch evaluation."""
+    manifest, ids, vectors, tokenizer, model, device = resource
+    seqs, clipped = [], []
+    budget = manifest['max_length'] - tokenizer.num_special_tokens_to_add(pair=False)
+    for index, text in enumerate(texts):
+        tokens = tokenizer(text, add_special_tokens=False)['input_ids']
+        if len(tokens) > budget:
+            clipped.append(index)
+        seqs.append(tokenizer(text, add_special_tokens=True, truncation=True,
+                              max_length=manifest['max_length'])['input_ids'])
+    qvectors = encode(model, tokenizer, seqs, device)
+    hits, scores = rank_tables(qvectors, vectors, top_k)
+    return [[(ids[i], float(score)) for i, score in zip(row, values)]
+            for row, values in zip(hits, scores)], clipped
+
+
+def search(args):
+    manifest = load_json(args.output / 'prepared.json')
+    if digest(manifest['qrels']) != manifest['qrels_sha256']:
+        raise ValueError('Judgments changed since preparation')
+    if digest(args.output / 'queries.json') != manifest['saved_queries_sha256']:
+        raise ValueError('Prepared queries changed')
+    queries = load_queries(args.output / 'queries.json')
+    resource = load_search_index(args.output, args.device)
+    ranks, query_clipped = {}, []
     for start in tqdm(range(0, len(queries), args.batch_size), desc='Retrieving queries'):
         batch = queries[start:start + args.batch_size]
-        seqs = []
-        for query in batch:
-            tokens = tokenizer(query['query'], add_special_tokens=False)['input_ids']
-            budget = manifest['max_length'] - tokenizer.num_special_tokens_to_add(pair=False)
-            if len(tokens) > budget:
-                query_clipped.append(str(query['query_id']))
-            seqs.append(tokenizer.build_inputs_with_special_tokens(tokens[:budget]))
-        qvectors = encode(model, tokenizer, seqs, args.device)
-        hits, scores = rank_tables(qvectors, vectors, manifest['candidate_depth'])
-        for query, row, values in zip(batch, hits, scores):
-            ranks[check_id(query['query_id'])] = [(ids[i], float(score)) for i, score in zip(row, values)]
+        hits, clipped = search_texts(resource, [q['query'] for q in batch],
+                                    manifest['candidate_depth'])
+        query_clipped.extend(str(batch[i]['query_id']) for i in clipped)
+        ranks.update((check_id(q['query_id']), row) for q, row in zip(batch, hits))
     return ranks, query_clipped

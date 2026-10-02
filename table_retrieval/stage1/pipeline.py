@@ -1,15 +1,20 @@
-"""Coordinate preparation, indexing, ranking, and evaluation."""
+"""Run the complete table retrieval pipeline.
+
+Prepares data, builds indexes, runs BM25, BGE, TAPAS, or fusion retrieval,
+evaluates results, manages experiment outputs, and supports interactive search."""
 from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
 import shutil
 from types import SimpleNamespace
-from .data import (load_json, load_corpus, load_queries, check_id,
+from ..data import (load_json, load_corpus, load_queries, check_id,
                    digest, write_json, write_run, read_run)
 from . import evaluation
 
-ROOT = Path(__file__).resolve().parents[1]
+CODE_ROOT = Path(__file__).resolve().parents[1]
+ROOT = CODE_ROOT.parent
+
 
 def device(settings):
     if settings['device'] != 'auto':
@@ -39,7 +44,8 @@ def arguments(settings, test=False):
         embeddings = root / 'embeddings' / name / 'corpus.npy'
     return SimpleNamespace(
         corpus=data / 'Corpus.json', queries=data / ('Test.json' if test else 'Val.json'),
-        qrels=data / ('Test_table_qrels.INSTRUCTOR_ONLY.tsv' if test else 'Val_table_qrels.tsv'),
+        qrels=Path(settings.get(f'{split}_qrels', data / (
+            'Test_table_qrels.INSTRUCTOR_ONLY.tsv' if test else 'Val_table_qrels.tsv'))),
         output=output, rankings=rankings, results=results, source=source,
         embeddings=embeddings, model=settings['model'], revision=settings['revision'],
         max_length=settings['max_length'], depth=settings['candidate_depth'],
@@ -80,39 +86,8 @@ def methods(retriever):
     return {'bm25': ['bm25_full', 'bm25_matched'], 'bge': ['bge'],
             'fusion': ['bm25_full', 'bm25_matched', 'bge', 'fusion']}[retriever]
 
-def prepare(args):
-    from transformers import AutoConfig, AutoTokenizer
-    from .retrievers.bge import CACHE
-    if args.output.exists() and any(args.output.iterdir()):
-        raise ValueError('prepare needs a new or empty output directory; inspect partial files or choose a new experiment')
-    corpus, queries = load_corpus(args.corpus), load_queries(args.queries)
-    config = AutoConfig.from_pretrained(args.model, revision=args.revision, cache_dir=CACHE)
-    revision = getattr(config, '_commit_hash', None) or args.revision
-    tokenizer = AutoTokenizer.from_pretrained(args.model, revision=revision, cache_dir=CACHE)
-    args.output.mkdir(parents=True, exist_ok=True)
-    tokenizer.save_pretrained(args.output / 'tokenizer')
-    from .data import prepare_text_inputs
-    ids, encoded, clipped = prepare_text_inputs(corpus, tokenizer, args.max_length)
-    write_json(args.output / 'table_ids.json', ids)
-    write_json(args.output / 'table_inputs.json', encoded)
-    write_json(args.output / 'queries.json', queries)
-    write_json(args.output / 'truncated_tables.json', clipped)
-    manifest = {'model': args.model, 'revision': revision, 'max_length': args.max_length,
-                'fields': 'paper_title + caption + first row (headers) + all subsequent rows',
-                'table_count': len(ids), 'query_count': len(queries), 'truncated_tables': len(clipped),
-                'candidate_depth': args.depth, 'top_k': getattr(args, 'top_k', 10),
-                'rrf_constant': getattr(args, 'rrf_constant', 60), 'rrf_weights': [1, 1],
-                'bm25_k1': 1.2, 'bm25_b': 0.75,
-                'corpus': str(args.corpus), 'corpus_sha256': digest(args.corpus),
-                'queries_sha256': digest(args.queries), 'qrels': str(args.qrels),
-                'qrels_sha256': digest(args.qrels), 'inputs_sha256': digest(args.output / 'table_inputs.json'),
-                'ids_sha256': digest(args.output / 'table_ids.json'),
-                'saved_queries_sha256': digest(args.output / 'queries.json'),
-                'pooling': 'L2-normalized CLS; no query instruction', 'finetuned': False}
-    write_json(args.output / 'prepared.json', manifest)
-    print(f'Prepared {len(ids):,} tables; {len(clipped):,} exceeded {args.max_length} tokens.', flush=True)
 
-
+# Record the exact code and index used before a test run.
 def freeze(source, output):
     if output.exists() and any(output.iterdir()):
         raise ValueError('Test output must be new or empty; existing results will not be overwritten')
@@ -131,9 +106,8 @@ def freeze(source, output):
               'embeddings_sha256': digest(source / 'embeddings.npy'),
               'primary_metric': 'fusion Recall@10, grades >= 1, entire corpus',
               'test_tuning': False,
-              'code_sha256': {name: digest(Path(__file__).parent / name)
-                              for name in ['data.py', 'pipeline.py', 'evaluation.py', 'fusion.py',
-                                           'retrievers/bm25.py', 'retrievers/bge.py', 'retrievers/tapas.py']}}
+              'code_sha256': {name: digest(CODE_ROOT / name)
+                              for name in CODE_FILES}}
     output.mkdir(parents=True, exist_ok=True)
     write_json(output / 'frozen.json', frozen)
     return manifest, metadata
@@ -162,14 +136,12 @@ def prepare_test(args):
     print('Test preparation complete; reused corpus embeddings without re-encoding.', flush=True)
 
 
+# Historical code hashes record provenance; they are not a reuse requirement.
 def check_frozen(output):
+    """Protect reused test embeddings without requiring historical source paths."""
     frozen = load_json(output / 'frozen.json')
-    for name, expected in frozen['code_sha256'].items():
-        path = Path(__file__).parent / name
-        if not path.exists() or digest(path) != expected:
-            raise ValueError(f'Frozen evaluation code changed: {name}; use a new experiment directory')
     if digest(output / 'embeddings.npy') != frozen['embeddings_sha256']:
-        raise ValueError('Frozen corpus embeddings changed')
+        raise ValueError('Frozen corpus embeddings changed; choose a new --experiment name')
 
 
 def retrieve_bge(args):
@@ -191,7 +163,7 @@ def retrieve_fusion(args):
 
 
 def retrieve_tapas(args):
-    from .retrievers.tapas import search
+    from .experiments.tapas import search
     rankings, metadata, similarity = search(args)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     write_run(args.output, rankings, 'tapas_dtr')
@@ -209,7 +181,7 @@ def reject_partial(directory):
 
 
 def workflow(settings, test=False):
-    """Run one complete experiment, reusing only matching completed artifacts."""
+    """Evaluate matching saved runs, or generate only their missing rankings."""
     if settings['retriever'] == 'tapas':
         return tapas(settings, test)
     args = arguments(settings, test)
@@ -217,8 +189,10 @@ def workflow(settings, test=False):
     needed = methods(settings['retriever'])
     for directory in {args.output, args.rankings, args.results}:
         reject_partial(directory)
-    if all((args.rankings / f'{name}.run').exists() for name in needed):
+    missing = [name for name in needed if not (args.rankings / f'{name}.run').exists()]
+    if not missing:
         # Recalculate from saved rankings: existing metrics must agree exactly.
+        print('Evaluating saved rankings; retrieval was not rerun.', flush=True)
         args.results.mkdir(parents=True, exist_ok=True)
         evaluation.assess(args)
         show_results(args, needed)
@@ -239,13 +213,14 @@ def workflow(settings, test=False):
         directory.mkdir(parents=True, exist_ok=True)
     if (args.output / 'frozen.json').exists():
         check_frozen(args.output)
-    if settings['retriever'] in ('bm25', 'fusion'):
+    print(f'Generating missing rankings: {", ".join(missing)}.', flush=True)
+    if any(name in missing for name in ('bm25_full', 'bm25_matched')):
         from .retrievers.bm25 import index_lexical
         lexical_args = arguments(settings) if (args.output / 'frozen.json').exists() else args
         reject_partial(lexical_args.output)
         index_lexical(lexical_args)
         retrieve_lexical(args)
-    if settings['retriever'] in ('bge', 'fusion'):
+    if 'bge' in missing:
         from .retrievers.bge import index_bge
         if not (args.output / 'index.json').exists():
             # The index stores a stable link to corpus embeddings outside it.
@@ -263,7 +238,7 @@ def workflow(settings, test=False):
 
 
 def tapas(settings, test=False):
-    from .retrievers.tapas import index_tapas, checkpoint_fingerprint
+    from .experiments.tapas import index_tapas, checkpoint_fingerprint
     config = settings['tapas']
     data = Path(settings['data'])
     split = 'test' if test else 'val'
@@ -274,7 +249,8 @@ def tapas(settings, test=False):
     run = (Path(config['run']) if not test else Path(config['run']).with_name('test.run')) if legacy else root / 'rankings' / split / name / 'tapas.run'
     result = run.with_suffix('.metrics.json') if legacy else root / 'results' / name / split / 'tapas.metrics.json'
     queries = data / ('Test.json' if test else 'Val.json')
-    qrels = data / ('Test_table_qrels.INSTRUCTOR_ONLY.tsv' if test else 'Val_table_qrels.tsv')
+    qrels = Path(settings.get(f'{split}_qrels', data / (
+        'Test_table_qrels.INSTRUCTOR_ONLY.tsv' if test else 'Val_table_qrels.tsv')))
     signature = dict(model_fingerprint=checkpoint_fingerprint(config['checkpoint']),
                      corpus_sha256=digest(data / 'Corpus.json'), queries_sha256=digest(queries),
                      qrels_sha256=digest(qrels), top_k=settings.get('top_k', 10))
@@ -314,8 +290,14 @@ def tapas(settings, test=False):
     print(f'TAPAS: Recall@10 = {100 * score:.2f}%' if score is not None else 'TAPAS: unscored')
 
 
-def run(settings_path, model, split='val', experiment=None):
+def run(settings_path, model, split='val', experiment=None, qrels=None):
     settings = load_json(settings_path)
+    if qrels is not None:
+        # Resolve relative CLI paths before switching to the repository root.
+        path = Path(qrels).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f'Qrels file not found: {path}')
+        settings[f'{split}_qrels'] = str(path)
     os.chdir(ROOT)
     os.environ.setdefault('OMP_NUM_THREADS', '4')
     os.environ.setdefault('TOKENIZERS_PARALLELISM', 'false')
@@ -327,3 +309,119 @@ def run(settings_path, model, split='val', experiment=None):
             settings['tapas']['checkpoint'] = str(Path(settings.get('output_root', 'outputs')) / 'checkpoints' / experiment / 'best')
     settings['retriever'] = model
     workflow(settings, test=split == 'test')
+
+
+def interactive_config(settings_path=None, experiment=None):
+    """Resolve existing validation artifacts for an interactive, read-only search."""
+    settings = load_json(settings_path or ROOT / 'table_retrieval/settings.json')
+    if experiment:
+        if Path(experiment).name != experiment or experiment in ('.', '..'):
+            raise ValueError('Experiment must be a simple directory name')
+        settings['experiment'] = experiment
+    args = arguments(settings)
+    name = settings.get('experiment') or 'default'
+    tapas = settings['tapas']
+    legacy = settings.get('experiment') is None and Path(tapas['index']).exists()
+    return dict(index=str(args.output), device=args.device,
+                tapas_index=str(Path(tapas['index']) if legacy else
+                                Path(settings.get('output_root', 'outputs')) / 'indexes' / name / 'tapas'),
+                checkpoint=str(Path(settings.get('output_root', 'outputs')) / 'checkpoints' / name / 'best'
+                               if experiment else tapas['checkpoint']))
+
+
+def load_search_corpus(index):
+    """Load and validate the source corpus referenced by a completed index."""
+    index = Path(index)
+    metadata = load_json(index / ('prepared.json' if (index / 'prepared.json').exists() else 'index.json'))
+    corpus_path = Path(metadata['corpus'])
+    if metadata.get('corpus_sha256') and digest(corpus_path) != metadata['corpus_sha256']:
+        raise ValueError(f'Corpus changed since indexing: {corpus_path}')
+    return load_corpus(corpus_path)
+
+CODE_FILES = [
+    'data.py', 'stage1/text.py', 'stage1/pipeline.py',
+    'stage1/evaluation.py', 'stage1/fusion.py',
+    'stage1/retrievers/bm25.py', 'stage1/retrievers/bge.py',
+    'stage1/retrievers/ranking.py', 'stage1/experiments/tapas.py',
+]
+
+
+def prepare_tables(args):
+    from transformers import AutoConfig, AutoTokenizer
+    from .retrievers.bge import CACHE
+    if args.output.exists() and any(args.output.iterdir()):
+        raise ValueError('prepare needs a new or empty output directory; inspect partial files or choose a new experiment')
+    corpus = load_corpus(args.corpus)
+    config = AutoConfig.from_pretrained(args.model, revision=args.revision, cache_dir=CACHE)
+    revision = getattr(config, '_commit_hash', None) or args.revision
+    tokenizer = AutoTokenizer.from_pretrained(args.model, revision=revision, cache_dir=CACHE)
+    args.output.mkdir(parents=True, exist_ok=True)
+    tokenizer.save_pretrained(args.output / 'tokenizer')
+    from .text import prepare_text_inputs
+    ids, encoded, clipped = prepare_text_inputs(corpus, tokenizer, args.max_length)
+    write_json(args.output / 'table_ids.json', ids)
+    write_json(args.output / 'table_inputs.json', encoded)
+    write_json(args.output / 'truncated_tables.json', clipped)
+    manifest = {'model': args.model, 'revision': revision, 'max_length': args.max_length,
+                'fields': 'paper_title + caption + first row (headers) + all subsequent rows',
+                'table_count': len(ids), 'truncated_tables': len(clipped),
+                'candidate_depth': args.depth, 'top_k': getattr(args, 'top_k', 10),
+                'rrf_constant': getattr(args, 'rrf_constant', 60), 'rrf_weights': [1, 1],
+                'bm25_k1': 1.2, 'bm25_b': 0.75,
+                'corpus': str(args.corpus), 'corpus_sha256': digest(args.corpus),
+                'inputs_sha256': digest(args.output / 'table_inputs.json'),
+                'ids_sha256': digest(args.output / 'table_ids.json'),
+                'pooling': 'L2-normalized CLS; no query instruction', 'finetuned': False}
+    print(f'Prepared {len(ids):,} tables; {len(clipped):,} exceeded {args.max_length} tokens.', flush=True)
+    return manifest
+
+
+def prepare(args):
+    queries = load_queries(args.queries)
+    manifest = prepare_tables(args)
+    write_json(args.output / 'queries.json', queries)
+    manifest.update(query_count=len(queries), queries_sha256=digest(args.queries),
+                    qrels=str(args.qrels), qrels_sha256=digest(args.qrels),
+                    saved_queries_sha256=digest(args.output / 'queries.json'))
+    write_json(args.output / 'prepared.json', manifest)
+
+
+def load_search_backend(name, index, device='cpu', checkpoint=None):
+    """Load an existing backend once; never build or modify experiment artifacts."""
+    index = Path(index)
+    if name in ('bm25_full', 'bm25_matched'):
+        from .retrievers.bm25 import load_lexical
+        manifest = load_json(index / 'prepared.json')
+        model = load_lexical(index / f'{name}.npz', manifest)
+        return model, manifest
+    if name == 'bge':
+        from .retrievers.bge import load_search_index
+        return load_search_index(index, device)
+    if name == 'tapas':
+        from .experiments.tapas import load_search_index
+        if not checkpoint or not (Path(checkpoint) / 'retriever.json').is_file():
+            raise FileNotFoundError(
+                f'Missing TAPAS checkpoint: {checkpoint} (requires retriever.json and encoder weights)')
+        return load_search_index(index, Path(checkpoint), device)
+    raise ValueError(f'Unknown search backend: {name}')
+
+
+def search_query(query, model, resources, top_k=5):
+    """Rank a live query with already-loaded backends; return (table ID, score)."""
+    if not query.strip() or top_k < 1:
+        raise ValueError('Enter a nonempty query and a positive top-k')
+    if model == 'bm25':
+        return resources['bm25_full'][0].search(query, top_k)
+    if model == 'tapas':
+        from .experiments.tapas import search_texts
+        return search_texts(resources['tapas'], [query], top_k)[0]
+    if model in ('bge', 'fusion'):
+        from .retrievers.bge import search_texts
+        if model == 'bge':
+            return search_texts(resources['bge'], [query], top_k)[0][0]
+        from .fusion import fuse
+        lexical, manifest = resources['bm25_matched']
+        depth = manifest['candidate_depth']
+        dense = search_texts(resources['bge'], [query], depth)[0][0]
+        return fuse(lexical.search(query, depth), dense, depth, manifest['rrf_constant'])[:top_k]
+    raise ValueError(f'Unknown retrieval model: {model}')

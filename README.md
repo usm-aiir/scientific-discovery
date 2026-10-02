@@ -1,13 +1,13 @@
 # Scientific Table Retrieval
 
-This project retrieves scientific tables using:
+Stage 1 retrieves relevant scientific tables using:
 
-- BM25
-- Pretrained BGE-M3
-- Fine-tuned TAPAS
-- BM25 + BGE-M3 fusion
+- **BM25**
+- **Pretrained BGE-M3**
+- **BM25 + BGE-M3 fusion**
+- **TAPAS** as an optional comparison
 
-The best-performing approach is BM25 + BGE-M3 fusion:
+The best-performing method is **BM25 + BGE-M3 fusion**.
 
 | Split | Recall@10 |
 | --- | --- |
@@ -19,14 +19,6 @@ The best-performing approach is BM25 + BGE-M3 fusion:
 ```bash
 bash bin/install
 conda activate table-dtr
-```
-
-The existing scraping, query-generation, and image-search tools use a separate
-optional environment name. Both installers use the same `requirements.txt`:
-
-```bash
-bash bin/install --tools
-conda activate scidiscovery
 ```
 
 ## Data
@@ -45,64 +37,59 @@ Test.json
 Test_table_qrels.INSTRUCTOR_ONLY.tsv
 ```
 
-Reproducing the TAPAS training experiment also requires:
+## Run
+
+Run the fusion model on validation:
+
+```bash
+python -m table_retrieval.stage1.cli --model fusion --split val
+```
+
+Run on test:
+
+```bash
+python -m table_retrieval.stage1.cli --model fusion --split test
+```
+
+Run an individual retriever:
+
+```bash
+python -m table_retrieval.stage1.cli --model bge --split val
+```
+
+Available models:
 
 ```text
-Train.json
-Train_table_qrels.tsv
+bm25
+bge
+fusion
+tapas //a comparison experiment
 ```
 
-Data, model weights, indexes, and generated rankings are not included in Git.
-
-## Run retrieval
-
-Run the recommended fusion model on validation:
+Use a different judgment file with:
 
 ```bash
-python -m table_retrieval --model fusion --split val
+python -m table_retrieval.stage1.cli \
+    --model fusion \
+    --split test \
+    --qrels path/to/judgments.tsv
 ```
 
-Run it on test after completing validation:
+Use `--experiment` when running a new experiment with different data or settings.
 
-```bash
-python -m table_retrieval --model fusion --split test
-```
+## Table representation
 
-To reproduce an individual model result, replace `fusion` with `bm25`, `bge`, or `tapas`:
-
-```bash
-python -m table_retrieval --model bge --split val
-```
-
-TAPAS retrieval requires a trained checkpoint. Its training code is retained for experiment reproduction.
-
-Running the package without arguments displays help:
-
-```bash
-python -m table_retrieval
-```
-
-## Repository structure
+The main BM25 and BGE pipeline uses:
 
 ```text
-table_retrieval/
-├── __main__.py
-├── data.py
-├── pipeline.py
-├── fusion.py
-├── evaluation.py
-├── settings.json
-├── retrievers/
-│   ├── bm25.py
-│   ├── bge.py
-│   └── tapas.py
-└── training/
-    ├── tapas.py
-    └── convert.py
+paper title + caption + table headers + table rows
 ```
 
-- `pipeline.py` runs the complete retrieval workflow.
-- `retrievers/` contains the model-specific retrieval code.
-- `fusion.py` combines BM25 and BGE-M3 results.
-- `evaluation.py` calculates retrieval metrics.
-- `training/` contains the research-only TAPAS training code.
+Subcaptions and reference text are not included.
+
+## Notes
+
+- Existing rankings are reused when the experiment data and settings match.
+- Missing rankings are generated automatically.
+- TAPAS is retained as an optional comparison experiment.
+- Stage 1 settings are stored in `table_retrieval/settings.json`.

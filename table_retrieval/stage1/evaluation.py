@@ -1,18 +1,23 @@
-"""Validate saved rankings, calculate Recall@10 and compare complementary hits."""
+"""
+Evaluate and compare table retrieval results.
+
+Validates saved rankings, calculates Recall@10, compares BM25 and BGE results,
+and identifies relevant tables found by only one retrieval method.
+"""
 from collections import defaultdict
 import json
 import math
 from pathlib import Path
 import numpy as np
-from .data import load_json, load_queries, normalize_table_id, check_id, digest, read_run, write_json, load_qrels
+from ..data import load_json, load_queries, normalize_table_id, check_id, digest, read_run, write_json, load_qrels
 
 def evaluate(run_path, qrels_path, query_ids, k=10, min_grade=1):
-    """Score all requested queries, including queries absent from the run.
+    """Calculate recall for all requested queries.
 
-    Grades >= min_grade count as relevant. Queries without positive judgments
-    are reported separately and excluded from the mean. Missing run entries
-    for judged queries receive zero recall. Corpus and qrels table ID formats
-    are normalized in memory before matching and duplicate detection.
+Grades at or above min_grade are treated as relevant. Queries with no relevant
+judgments are reported separately and excluded from the average. Judged queries
+missing from the run receive a recall of zero. Table IDs are normalized before
+matching and checking for duplicates.
     """
     if k < 1:
         raise ValueError("k must be positive.")

@@ -1,7 +1,9 @@
-"""Strictly convert the official TensorFlow DTR checkpoint to PyTorch.
+"""
+Convert the official TensorFlow DTR checkpoint to PyTorch.
 
-Requires tensorflow-cpu only during conversion. Every inference tensor must map;
-optimizer slots are excluded. Source-file SHA-256 hashes are recorded.
+This script maps the query and table encoders, verifies tensor shapes,
+excludes optimizer variables, and records SHA-256 checksums for reproducibility.
+TensorFlow is only required during checkpoint conversion.
 """
 
 import argparse
@@ -14,7 +16,7 @@ import numpy as np
 import torch
 from transformers import BertTokenizer, TapasConfig, TapasModel, TapasTokenizer
 
-from ..retrievers.tapas import PaperRetriever
+from .tapas import PaperRetriever
 
 
 def tf_name(name, scope):

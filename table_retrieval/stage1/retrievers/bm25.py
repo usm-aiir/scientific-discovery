@@ -1,11 +1,16 @@
-"""BM25 tokenization, persistent postings, and lexical search."""
-from ..data import load_queries
+"""
+BM25 lexical retrieval and saved indexing.
+
+Tokenizes table text, builds and saves BM25 indexes, reloads them for reuse,
+and ranks tables by lexical similarity to each query.
+"""
 from collections import Counter, defaultdict
 import math
 import re
 import numpy as np
 from transformers import AutoTokenizer
-from ..data import check_id, table_to_text, table_text, load_json, load_corpus, digest
+from ...data import check_id, digest, load_corpus, load_json, load_queries
+from ..text import table_text
 
 def tokenize(text):
     """Lowercase words/numbers; retain internal decimal points and hyphens.
@@ -21,18 +26,21 @@ class BM25:
     Uses positive IDF: log(1 + (N - df + 0.5) / (df + 0.5)).
     k1 controls term-frequency saturation; b controls length normalization.
     Table IDs break score ties deterministically. No training is required.
+    Input maps table IDs to prepared strings; callers choose the text format.
     """
 
-    def __init__(self, corpus, k1=1.2, b=0.75, text_fn=table_to_text):
-        if not corpus:
-            raise ValueError("The corpus is empty.")
+    def __init__(self, texts, k1=1.2, b=0.75):
+        if not texts:
+            raise ValueError("The text collection is empty.")
+        if any(not isinstance(text, str) for text in texts.values()):
+            raise TypeError("BM25 expects table IDs mapped to prepared text strings.")
         if not math.isfinite(k1) or k1 <= 0 or not 0 <= b <= 1:
             raise ValueError("Require finite k1 > 0 and 0 <= b <= 1.")
-        self.table_ids = sorted(check_id(uid) for uid in corpus)
+        self.table_ids = sorted(check_id(uid) for uid in texts)
         lengths = np.zeros(len(self.table_ids), dtype=np.float64)
         postings = defaultdict(list)
         for index, uid in enumerate(self.table_ids):
-            counts = Counter(tokenize(text_fn(corpus[uid])))
+            counts = Counter(tokenize(texts[uid]))
             lengths[index] = sum(counts.values())
             for term, frequency in counts.items():
                 postings[term].append((index, frequency))
@@ -79,7 +87,7 @@ def index_lexical(args):
     if ids != sorted(corpus) or len(sequences) != len(ids):
         raise ValueError('Corpus and prepared inputs differ')
     tokenizer = AutoTokenizer.from_pretrained(args.output / 'tokenizer')
-    wrapper = tokenizer.build_inputs_with_special_tokens([])
+    wrapper = tokenizer('', add_special_tokens=True)['input_ids']
     if len(wrapper) != 2 or any(seq[0] != wrapper[0] or seq[-1] != wrapper[-1] for seq in sequences):
         raise ValueError('Unexpected tokenizer special-token layout')
     for name in ['bm25_full', 'bm25_matched']:
@@ -89,7 +97,7 @@ def index_lexical(args):
         texts = ({uid: table_text(corpus[uid]) for uid in ids} if name == 'bm25_full' else
                  {uid: tokenizer.decode(seq[1:-1], clean_up_tokenization_spaces=False)
                   for uid, seq in zip(ids, sequences)})
-        model = BM25(texts, k1=manifest['bm25_k1'], b=manifest['bm25_b'], text_fn=lambda text: text)
+        model = BM25(texts, k1=manifest['bm25_k1'], b=manifest['bm25_b'])
         terms = list(model.postings)
         indices, weights = zip(*(model.postings[term] for term in terms))
         offsets = np.cumsum([0] + [len(values) for values in indices])

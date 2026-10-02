@@ -1,4 +1,9 @@
-"""Shared exact vector ranking with deterministic ties."""
+"""
+Exact vector ranking for table retrieval.
+
+Computes similarity scores between query and table vectors, returns the
+top-k matches, and uses corpus order to break score ties consistently.
+"""
 import numpy as np
 
 def rank_tables(query_vectors, table_vectors, top_k):
