@@ -3,8 +3,8 @@ import pandas as pd
 
 qrels = Qrels.from_file("/home/adah.holt/scientific-discovery/Test_figure_qrels.tsv", kind="trec")
 
-run_pretrained = Run.from_file("/home/adah.holt/scientific-discovery/run_pretrained.trec")
-run_finetuned  = Run.from_file("/home/adah.holt/scientific-discovery/run_finetuned.trec")
+run_pretrained = Run.from_file("/home/adah.holt/scientific-discovery/run_colqwen_pretrained.trec")
+run_finetuned  = Run.from_file("/home/adah.holt/scientific-discovery/run_colqwen_finetuned.trec")
 
 metrics = ["ndcg@10", "mrr", "recall@10", "recall@100", "precision@10"]
 
@@ -64,6 +64,6 @@ for metric in metrics:
             "delta":      ft_scores.get(qid, 0.0) - pre_scores.get(qid, 0.0),
         })
 
-out_csv = "colpali_per_query_metrics.csv"
+out_csv = "colqwen_per_query_metrics.csv"
 pd.DataFrame(all_rows).to_csv(out_csv, index=False)
 print(f"\nPer-query metrics saved to {out_csv}")

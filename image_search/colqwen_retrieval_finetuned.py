@@ -117,6 +117,11 @@ def main():
                         new_w = int(img.width * scale)
                         new_h = int(img.height * scale)
                         img = img.resize((new_w, new_h), Image.LANCZOS)
+                    # Skip images with extreme aspect ratios (Qwen2.5-VL limit is 200:1)
+                    ratio = max(img.width, img.height) / min(img.width, img.height)
+                    if ratio > 200:
+                        print(f"Skipping {img_id}: extreme aspect ratio {ratio:.1f}")
+                        continue
                     images.append(img)
                     loaded_ids.append(img_id)
                 except Exception as e:
@@ -161,8 +166,8 @@ def main():
     with open(args.output_trec, "w") as f:
         for qid, ranked_docs in results.items():
             for rank, (doc_id, score) in enumerate(ranked_docs, start=1):
-                qrel_id = filename_to_qrel_id(doc_id)
-                f.write(f"{qid} Q0 {qrel_id} {rank} {score:.6f} colqwen_finetuned\n")
+                # Use doc_id directly — qrels use underscore format (2504.15247_10)
+                f.write(f"{qid} Q0 {doc_id} {rank} {score:.6f} colqwen_finetuned\n")
 
     print("Done!")
 
