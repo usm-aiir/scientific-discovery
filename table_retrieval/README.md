@@ -37,18 +37,12 @@ The pipeline is designed to be initialized once and reused for incoming queries.
 table_retrieval/
 ├── pipeline.py
 ├── stage1/
-├── stage2/
-├── experiments/
-├── demo/
-└── tests/
+└── stage2/
 ```
 
 - `pipeline.py` connects table retrieval and cell retrieval.
 - `stage1/` retrieves relevant tables.
 - `stage2/` ranks evidence cells from the retrieved tables.
-- `experiments/` contains training and evaluation workflows.
-- `demo/` contains the local interface.
-- `tests/` contains runtime and regression tests.
 
 ## Stage 1
 
