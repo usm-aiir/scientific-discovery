@@ -5,7 +5,6 @@ Stage 1 retrieves relevant scientific tables using:
 - **BM25**
 - **Pretrained BGE-M3**
 - **BM25 + BGE-M3 fusion**
-- **TAPAS** as an optional comparison
 
 The best-performing method is **BM25 + BGE-M3 fusion**.
 
@@ -63,8 +62,27 @@ Available models:
 bm25
 bge
 fusion
-tapas //a comparison experiment
 ```
+
+Run the canonical end-to-end pipeline with the validation-selected runtime
+policy (fusion Top-5 followed by fine-tuned BGE global Top-3):
+
+```bash
+python -m table_retrieval.pipeline \
+    --query "What is the reported accuracy?" \
+    --retriever fusion \
+    --table-top-k 5 \
+    --stage1-index /path/to/completed/stage1/index \
+    --checkpoint results/stage2/bge_finetuned/best_model \
+    --cell-top-k 3 \
+    --output evidence.jsonl
+```
+
+The Stage 1 index and Stage 2 checkpoint must already exist. Live inference does
+not build an index, read qrels, or silently fall back to `results/bge_comparison`
+or a pretrained cell model. Instead of `--stage1-index`, an existing named index
+can be selected with `--experiment NAME`; it resolves to
+`outputs/indexes/NAME/val` (or the configured `output_root`).
 
 Use a different judgment file with:
 
@@ -91,5 +109,4 @@ Subcaptions and reference text are not included.
 
 - Existing rankings are reused when the experiment data and settings match.
 - Missing rankings are generated automatically.
-- TAPAS is retained as an optional comparison experiment.
 - Stage 1 settings are stored in `table_retrieval/settings.json`.

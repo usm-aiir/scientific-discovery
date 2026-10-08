@@ -14,8 +14,7 @@ def main(argv=None):
         '  python -m table_retrieval.stage1.cli --model bge --split val\n'
         '  python -m table_retrieval.stage1.cli --model fusion --split test',
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--model', choices=['bm25', 'bge', 'tapas', 'fusion'],
-                        help='Retriever; tapas is optional for reproducing the recorded comparison')
+    parser.add_argument('--model', choices=['bm25', 'bge', 'fusion'], help='Retriever to evaluate')
     parser.add_argument('--split', choices=['val', 'test'], default='val')
     parser.add_argument('--qrels', type=Path,
                         help='Judgments file for the selected split; defaults to its standard dataset qrels')

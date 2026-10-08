@@ -1,6 +1,6 @@
 """Run the complete table retrieval pipeline.
 
-Prepares data, builds indexes, runs BM25, BGE, TAPAS, or fusion retrieval,
+Prepares data, builds indexes, runs BM25, BGE, or fusion retrieval,
 evaluates results, manages experiment outputs, and supports interactive search."""
 from datetime import datetime, timezone
 import json
@@ -9,18 +9,33 @@ from pathlib import Path
 import shutil
 from types import SimpleNamespace
 from ..data import (load_json, load_corpus, load_queries, check_id,
-                   digest, write_json, write_run, read_run)
-from . import evaluation
+                   digest, write_json, write_run, read_run, Candidate)
 
 CODE_ROOT = Path(__file__).resolve().parents[1]
 ROOT = CODE_ROOT.parent
 
 
-def device(settings):
-    if settings['device'] != 'auto':
-        return settings['device']
+def resolve_device(requested):
+    """Resolve and validate an inference device before loading a model."""
     import torch
-    return 'cuda:1' if torch.cuda.device_count() >= 2 else 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    if not isinstance(requested, str) or not requested.strip():
+        raise ValueError('Stage 1 device must be a nonempty string or "auto".')
+    if requested == 'auto':
+        return 'cuda:1' if torch.cuda.device_count() >= 2 else 'cuda:0' if torch.cuda.is_available() else 'cpu'
+    try:
+        parsed = torch.device(requested)
+    except (RuntimeError, TypeError) as error:
+        raise ValueError(f'Invalid Stage 1 device: {requested!r}') from error
+    if parsed.type == 'cuda':
+        if not torch.cuda.is_available():
+            raise RuntimeError(f'CUDA device requested but CUDA is unavailable: {requested}')
+        if parsed.index is not None and parsed.index >= torch.cuda.device_count():
+            raise RuntimeError(f'CUDA device does not exist: {requested}')
+    return str(parsed)
+
+
+def device(settings):
+    return resolve_device(settings['device'])
 
 
 def arguments(settings, test=False):
@@ -162,17 +177,6 @@ def retrieve_fusion(args):
     write_run(getattr(args, 'rankings', args.output) / 'fusion.run', combine(args), 'rrf60')
 
 
-def retrieve_tapas(args):
-    from .experiments.tapas import search
-    rankings, metadata, similarity = search(args)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    write_run(args.output, rankings, 'tapas_dtr')
-    settings = {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}
-    settings.update(query_count=len(rankings), table_count=metadata['table_count'],
-                    model_fingerprint=metadata['model_fingerprint'], similarity=similarity)
-    write_json(args.output.with_suffix('.settings.json'), settings)
-
-
 def reject_partial(directory):
     if directory.exists():
         partial = list(directory.glob('*.tmp'))
@@ -182,8 +186,8 @@ def reject_partial(directory):
 
 def workflow(settings, test=False):
     """Evaluate matching saved runs, or generate only their missing rankings."""
-    if settings['retriever'] == 'tapas':
-        return tapas(settings, test)
+    # Evaluation is an experiment-only dependency; live retrieval does not need it.
+    from . import evaluation
     args = arguments(settings, test)
     check_settings(settings, args)
     needed = methods(settings['retriever'])
@@ -237,60 +241,9 @@ def workflow(settings, test=False):
     show_results(args, needed)
 
 
-def tapas(settings, test=False):
-    from .experiments.tapas import index_tapas, checkpoint_fingerprint
-    config = settings['tapas']
-    data = Path(settings['data'])
-    split = 'test' if test else 'val'
-    root = Path(settings.get('output_root', 'outputs'))
-    name = settings.get('experiment') or 'default'
-    legacy = settings.get('experiment') is None and Path(config['index']).exists()
-    index = Path(config['index']) if legacy else root / 'indexes' / name / 'tapas'
-    run = (Path(config['run']) if not test else Path(config['run']).with_name('test.run')) if legacy else root / 'rankings' / split / name / 'tapas.run'
-    result = run.with_suffix('.metrics.json') if legacy else root / 'results' / name / split / 'tapas.metrics.json'
-    queries = data / ('Test.json' if test else 'Val.json')
-    qrels = Path(settings.get(f'{split}_qrels', data / (
-        'Test_table_qrels.INSTRUCTOR_ONLY.tsv' if test else 'Val_table_qrels.tsv')))
-    signature = dict(model_fingerprint=checkpoint_fingerprint(config['checkpoint']),
-                     corpus_sha256=digest(data / 'Corpus.json'), queries_sha256=digest(queries),
-                     qrels_sha256=digest(qrels), top_k=settings.get('top_k', 10))
-    if signature['top_k'] < 10:
-        raise ValueError('top_k must be >= 10 for Recall@10')
-    for directory in {index, run.parent, result.parent}:
-        reject_partial(directory)
-    guard = run.with_suffix('.experiment.json')
-    if guard.exists() and load_json(guard) != signature:
-        raise ValueError('TAPAS configuration differs; choose a new --experiment name')
-    if run.exists() and not guard.exists():
-        saved = load_json(run.with_suffix('.settings.json'))
-        if (saved['model_fingerprint'] != signature['model_fingerprint'] or
-                saved['top_k'] != signature['top_k'] or Path(saved['queries']) != queries):
-            raise ValueError('TAPAS saved settings differ; choose a new --experiment name')
-    args = SimpleNamespace(model=Path(config['checkpoint']), output=index,
-                           corpus=data / 'Corpus.json', device=device(settings), batch_size=config['eval_batch_size'])
-    if (index / 'index.json').exists():
-        metadata = load_json(index / 'index.json')
-        if metadata['model_fingerprint'] != signature['model_fingerprint']:
-            raise ValueError('TAPAS index checkpoint differs; choose a new --experiment name')
-        if metadata.get('corpus_sha256', signature['corpus_sha256']) != signature['corpus_sha256']:
-            raise ValueError('TAPAS index corpus differs; choose a new --experiment name')
-    elif not run.exists():
-        if not legacy:
-            args.embeddings = root / 'embeddings' / name / 'tapas.npy'
-        index_tapas(args)
-    if not run.exists():
-        run.parent.mkdir(parents=True, exist_ok=True)
-        write_json(guard, signature)
-        args.index, args.output, args.queries, args.top_k = index, run, queries, signature['top_k']
-        retrieve_tapas(args)
-    report = evaluation.evaluate(run, qrels, [q['query_id'] for q in load_queries(queries)])
-    result.parent.mkdir(parents=True, exist_ok=True)
-    write_json(result, report)
-    score = report['recall@10']
-    print(f'TAPAS: Recall@10 = {100 * score:.2f}%' if score is not None else 'TAPAS: unscored')
-
-
 def run(settings_path, model, split='val', experiment=None, qrels=None):
+    if model not in BACKENDS:
+        raise ValueError(f'Unknown retriever: {model}')
     settings = load_json(settings_path)
     if qrels is not None:
         # Resolve relative CLI paths before switching to the repository root.
@@ -305,35 +258,70 @@ def run(settings_path, model, split='val', experiment=None, qrels=None):
         if Path(experiment).name != experiment or experiment in ('.', '..'):
             raise ValueError('Experiment must be a simple directory name')
         settings['experiment'] = experiment
-        if model == 'tapas':
-            settings['tapas']['checkpoint'] = str(Path(settings.get('output_root', 'outputs')) / 'checkpoints' / experiment / 'best')
     settings['retriever'] = model
     workflow(settings, test=split == 'test')
 
 
-def interactive_config(settings_path=None, experiment=None):
+def interactive_config(settings_path=None, experiment=None, index_path=None, device_name=None):
     """Resolve existing validation artifacts for an interactive, read-only search."""
-    settings = load_json(settings_path or ROOT / 'table_retrieval/settings.json')
+    settings_file = (Path(settings_path).expanduser().resolve() if settings_path is not None
+                     else CODE_ROOT / 'settings.json')
+    settings = load_json(settings_file)
+    requested_device = settings['device'] if device_name is None else device_name
+    if index_path is not None:
+        if experiment:
+            raise ValueError('Choose either a Stage 1 index path or an experiment, not both.')
+        index = Path(index_path).expanduser().resolve()
+        if not index.is_dir():
+            raise FileNotFoundError(
+                f'Stage 1 index directory not found: {index}. Build it separately or provide '
+                '--experiment for an existing named experiment.')
+        manifest = index / 'prepared.json'
+        if not manifest.is_file():
+            raise FileNotFoundError(
+                f'Stage 1 index is incomplete: missing {manifest}. Live inference does not '
+                'build indexes automatically.')
+        return dict(index=str(index), device=resolve_device(requested_device))
     if experiment:
         if Path(experiment).name != experiment or experiment in ('.', '..'):
             raise ValueError('Experiment must be a simple directory name')
         settings['experiment'] = experiment
+    if settings_path is not None:
+        for key in ('output_root', 'validation_output', 'test_output'):
+            if key in settings and not Path(settings[key]).is_absolute():
+                settings[key] = str((settings_file.parent / settings[key]).resolve())
     args = arguments(settings)
-    name = settings.get('experiment') or 'default'
-    tapas = settings['tapas']
-    legacy = settings.get('experiment') is None and Path(tapas['index']).exists()
-    return dict(index=str(args.output), device=args.device,
-                tapas_index=str(Path(tapas['index']) if legacy else
-                                Path(settings.get('output_root', 'outputs')) / 'indexes' / name / 'tapas'),
-                checkpoint=str(Path(settings.get('output_root', 'outputs')) / 'checkpoints' / name / 'best'
-                               if experiment else tapas['checkpoint']))
+    index = args.output
+    if not index.is_dir():
+        raise FileNotFoundError(
+            f'Stage 1 experiment index directory not found: {index}. Run the Stage 1 '
+            'experiment separately before live inference.')
+    manifest = index / 'prepared.json'
+    if not manifest.is_file():
+        raise FileNotFoundError(
+            f'Stage 1 experiment index is incomplete: missing {manifest}. Live inference '
+            'does not build indexes automatically.')
+    return dict(index=str(index.resolve()), device=resolve_device(requested_device))
 
 
 def load_search_corpus(index):
     """Load and validate the source corpus referenced by a completed index."""
-    index = Path(index)
+    index = Path(index).expanduser().resolve()
     metadata = load_json(index / ('prepared.json' if (index / 'prepared.json').exists() else 'index.json'))
-    corpus_path = Path(metadata['corpus'])
+    recorded = Path(metadata['corpus']).expanduser()
+    if recorded.is_absolute() and recorded.is_file():
+        corpus_path = recorded.resolve()
+    else:
+        relative = Path(recorded.name) if recorded.is_absolute() else recorded
+        candidates = [index / relative]
+        candidates.extend(parent / relative for parent in index.parents)
+        if recorded.is_absolute():
+            candidates.insert(0, index / recorded.name)
+        corpus_path = next((path.resolve() for path in candidates if path.is_file()), None)
+        if corpus_path is None:
+            searched = ', '.join(str(path) for path in candidates)
+            raise FileNotFoundError(
+                f'Stage 1 corpus not found. Index metadata records {recorded!s}; searched: {searched}')
     if metadata.get('corpus_sha256') and digest(corpus_path) != metadata['corpus_sha256']:
         raise ValueError(f'Corpus changed since indexing: {corpus_path}')
     return load_corpus(corpus_path)
@@ -342,7 +330,7 @@ CODE_FILES = [
     'data.py', 'stage1/text.py', 'stage1/pipeline.py',
     'stage1/evaluation.py', 'stage1/fusion.py',
     'stage1/retrievers/bm25.py', 'stage1/retrievers/bge.py',
-    'stage1/retrievers/ranking.py', 'stage1/experiments/tapas.py',
+    'stage1/retrievers/ranking.py',
 ]
 
 
@@ -386,7 +374,7 @@ def prepare(args):
     write_json(args.output / 'prepared.json', manifest)
 
 
-def load_search_backend(name, index, device='cpu', checkpoint=None):
+def load_search_backend(name, index, device='cpu'):
     """Load an existing backend once; never build or modify experiment artifacts."""
     index = Path(index)
     if name in ('bm25_full', 'bm25_matched'):
@@ -397,12 +385,6 @@ def load_search_backend(name, index, device='cpu', checkpoint=None):
     if name == 'bge':
         from .retrievers.bge import load_search_index
         return load_search_index(index, device)
-    if name == 'tapas':
-        from .experiments.tapas import load_search_index
-        if not checkpoint or not (Path(checkpoint) / 'retriever.json').is_file():
-            raise FileNotFoundError(
-                f'Missing TAPAS checkpoint: {checkpoint} (requires retriever.json and encoder weights)')
-        return load_search_index(index, Path(checkpoint), device)
     raise ValueError(f'Unknown search backend: {name}')
 
 
@@ -412,9 +394,6 @@ def search_query(query, model, resources, top_k=5):
         raise ValueError('Enter a nonempty query and a positive top-k')
     if model == 'bm25':
         return resources['bm25_full'][0].search(query, top_k)
-    if model == 'tapas':
-        from .experiments.tapas import search_texts
-        return search_texts(resources['tapas'], [query], top_k)[0]
     if model in ('bge', 'fusion'):
         from .retrievers.bge import search_texts
         if model == 'bge':
@@ -425,3 +404,41 @@ def search_query(query, model, resources, top_k=5):
         dense = search_texts(resources['bge'], [query], depth)[0][0]
         return fuse(lexical.search(query, depth), dense, depth, manifest['rrf_constant'])[:top_k]
     raise ValueError(f'Unknown retrieval model: {model}')
+
+
+BACKENDS = {'fusion': ['bm25_matched', 'bge'], 'bm25': ['bm25_full'], 'bge': ['bge']}
+
+
+class RetrievalPipeline:
+    """Load existing retrieval resources once and return ranked candidate tables."""
+    def __init__(self, retriever, resources, corpus, provenance=None):
+        if retriever not in BACKENDS:
+            raise ValueError(f'Unknown retriever: {retriever}')
+        self.retriever = retriever
+        self.resources = resources
+        self.corpus = corpus
+        self.provenance = provenance or {}
+
+    @classmethod
+    def from_settings(cls, settings_path=None, experiment=None, retriever='fusion', index_path=None,
+                      device_name=None):
+        if retriever not in BACKENDS:
+            raise ValueError(f'Unknown retriever: {retriever}')
+        config = interactive_config(settings_path, experiment, index_path, device_name)
+        index = config['index']
+        corpus = load_search_corpus(index)
+        resources = {name: load_search_backend(name, index, config['device']) for name in BACKENDS[retriever]}
+        manifest_path = Path(index) / 'prepared.json'
+        manifest = load_json(manifest_path)
+        provenance = dict(index=str(Path(index).resolve()), index_manifest_sha256=digest(manifest_path),
+                          corpus_sha256=manifest.get('corpus_sha256'), retrieval_device=config['device'])
+        return cls(retriever, resources, corpus, provenance)
+
+    def search(self, query, top_k=5):
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError('Enter a nonempty query.')
+        if type(top_k) is not int or top_k < 1:
+            raise ValueError('top_k must be a positive integer.')
+        hits = search_query(query.strip(), self.retriever, self.resources, top_k)
+        return [Candidate(uid, self.corpus.get(uid), rank, float(score))
+                for rank, (uid, score) in enumerate(hits, 1)]
