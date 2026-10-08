@@ -13,10 +13,18 @@ from transformers import AutoModel, AutoTokenizer
 from tqdm.auto import tqdm
 from ...data import check_id, digest, load_json, load_queries, write_json
 
-CACHE = Path('results/model_cache')
+# Let Transformers use its standard, user-configurable Hugging Face cache.
+# A repository-relative cache makes otherwise identical service deployments
+# depend on their process working directory.
+CACHE = None
 
-def load_model(manifest, device):
-    model = AutoModel.from_pretrained(manifest['model'], revision=manifest['revision'],
+def load_model(manifest, device, artifact_root=None):
+    reference = manifest['model']
+    if artifact_root is not None:
+        local = Path(artifact_root) / reference
+        if local.exists():
+            reference = str(local.resolve())
+    model = AutoModel.from_pretrained(reference, revision=manifest['revision'],
                                      torch_dtype=torch.float16 if device.startswith('cuda') else torch.float32,
                                      cache_dir=CACHE, attn_implementation='eager').to(device).eval()
     return model
@@ -71,7 +79,7 @@ def load_search_index(output, device):
     if vectors.shape != (len(ids), metadata['dimension']) or not np.isfinite(vectors).all():
         raise ValueError('Invalid dense index')
     tokenizer = AutoTokenizer.from_pretrained(output / 'tokenizer')
-    model = load_model(manifest, device)
+    model = load_model(manifest, device, output)
     return manifest, ids, vectors, tokenizer, model, device
 
 
