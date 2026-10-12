@@ -1,11 +1,12 @@
 """
 Shared utilities for the ColPali training / retrieval pipeline:
-  - indexing the image corpus (filename stem -> path)
+  - indexing the image corpus (doc_id -> path)
   - loading query JSON files and qrels TSV files
   - computing nDCG@k / MRR / Recall@k for a run against qrels
+  - sanity-checking that qrels doc_ids actually exist in the indexed corpus
 
-Kept dependency-free (no pytrec_eval) so it runs in restricted / offline
-conda environments.
+Kept dependency-free (no pytrec_eval / ranx) so it runs in restricted /
+offline conda environments.
 """
 
 import csv
@@ -13,7 +14,6 @@ import json
 import math
 
 from pathlib import Path
-from ranx import Qrels, Run, evaluate, compare
 
 from PIL import Image, ImageFile, PngImagePlugin
 
@@ -35,17 +35,13 @@ def safe_open_image(path, fallback_size=None):
     """
     Open `path` as an RGB PIL Image, tolerating decode failures.
 
-    A 100K+ image corpus will eventually contain a handful of files that
-    are corrupt, truncated, or otherwise undecodable even with the relaxed
-    limits above. Rather than letting one bad file crash a multi-hour
-    training or retrieval run, this logs a warning and:
+    On failure, logs a warning and:
       - returns a blank white placeholder of `fallback_size` (a (width,
-        height) tuple) if one is given -- use this wherever a fixed-size,
-        index-aligned list of images is required (e.g. a training batch,
-        where dropping an item would break the query<->image pairing); or
-      - returns None if `fallback_size` is omitted -- use this for a
-        corpus scan / retrieval candidate pool, where the caller can just
-        filter the failed item out and continue with one fewer candidate.
+        height) tuple) if one is given -- only for places where a fixed-size,
+        index-aligned list of images is required; or
+      - returns None if `fallback_size` is omitted -- the caller filters the
+        failed item out. Prefer this wherever possible: a blank placeholder
+        paired with a real query is a corrupted training/eval example.
     """
     try:
         img = Image.open(path)
@@ -79,13 +75,13 @@ def doc_id_from_path(path: Path) -> str:
 
 def filename_to_qrels_id(stem):
     """
-    Try to convert an on-disk filename stem like 'paper_5_c' into the
-    qrels-style id 'paper::F5::c' (paper id, figure number prefixed with 'F',
-    optional panel/sub-figure suffix parts).
+    Hook for converting an on-disk filename stem into the id convention used
+    by the qrels files.
 
-    Returns the stem UNCHANGED if it doesn't match the expected
-    '<paper>_<digits>[_<panel>...]' pattern, so this is a safe no-op for
-    corpora that don't follow this convention.
+    Currently a no-op: it returns the stem unchanged, because the qrels doc_ids
+    in this project are plain filename stems (e.g. '2504.15247_10'). If a qrels
+    file ever uses a different convention, implement the conversion here so
+    training, validation and retrieval all pick it up consistently.
     """
     return stem
 
@@ -95,14 +91,16 @@ def canonical_doc_items(image_dir, image_paths=None):
     Returns a list of (doc_id, Path), EXACTLY ONE entry per physical image
     file -- safe to iterate for a full-corpus scan (no duplicate embedding).
 
-    doc_id is, in priority order:
-      1. the qrels-style id derived from the filename via filename_to_qrels_id
-         (e.g. 'paper_5_c.png' -> 'paper::F5::c'), when the filename matches
-         that pattern -- this is what makes the id match a qrels file that
-         uses the '<paper>::F<num>[::panel]' convention;
-      2. else, if the corpus is organized in subfolders, the path relative to
-         image_dir with directory separators replaced by '::';
+    doc_id is:
+      1. filename_to_qrels_id(stem), if that changes the stem (currently never);
+      2. else, if the image sits in a subfolder of image_dir, the relative path
+         with its parts joined by '_' (e.g. 'sub/2504.15247_10.png' ->
+         'sub_2504.15247_10');
       3. else, the bare filename stem.
+
+    NOTE: case 2 means corpora with subfolders get doc_ids that are NOT plain
+    filename stems. If your qrels use plain stems, retrieval run files will
+    not match them. Use report_qrels_coverage() to check this.
     """
     image_dir = Path(image_dir)
     if image_paths is None:
@@ -132,15 +130,13 @@ def canonical_doc_items(image_dir, image_paths=None):
 
 def build_doc_index(image_dir, image_paths=None):
     """
-    Returns a dict doc_id -> Path for MEMBERSHIP / PATH-LOOKUP use (e.g.
-    "is this qrels doc_id present, and if so where's the file?"). Includes
+    Returns a dict doc_id -> Path for MEMBERSHIP / PATH-LOOKUP use. Includes
     both the canonical id (see canonical_doc_items) and, as a fallback alias,
     the raw filename stem -- so a lookup succeeds whichever convention the
-    qrels file happens to use.
+    qrels file uses.
 
-    Do NOT iterate this dict to scan the corpus once per file -- the same
-    physical file may appear under two keys. Use canonical_doc_items()
-    instead for a full-corpus scan (e.g. final retrieval).
+    Do NOT iterate this dict to scan the corpus -- the same physical file may
+    appear under two keys. Use canonical_doc_items() for a full-corpus scan.
     """
     items = canonical_doc_items(image_dir, image_paths)
     lookup = {doc_id: p for doc_id, p in items}
@@ -148,6 +144,27 @@ def build_doc_index(image_dir, image_paths=None):
         stem = p.stem
         lookup.setdefault(stem, p)
     return lookup
+
+
+def report_qrels_coverage(qrels, corpus_ids, label="qrels"):
+    """
+    Print how many relevant doc_ids in `qrels` exist among `corpus_ids`
+    (the ids a retrieval run can actually return). A low number means the
+    run file and qrels use different doc_id conventions, which silently
+    drives every metric toward zero.
+    Returns (n_found, n_relevant).
+    """
+    corpus_ids = set(corpus_ids)
+    relevant = {d for docs in qrels.values() for d, r in docs.items() if r > 0}
+    found = relevant & corpus_ids
+    missing = sorted(relevant - corpus_ids)
+    pct = 100.0 * len(found) / max(1, len(relevant))
+    print(f"[COVERAGE] {label}: {len(found)}/{len(relevant)} relevant doc_ids "
+          f"({pct:.1f}%) are retrievable ids in the corpus.")
+    if missing:
+        print(f"  [WARN] {len(missing)} relevant doc_ids can never be retrieved. Examples: {missing[:5]}")
+        print(f"  Example corpus ids: {sorted(corpus_ids)[:5]}")
+    return len(found), len(relevant)
 
 
 # ---------------------------------------------------------------------------
@@ -253,14 +270,19 @@ def evaluate_run(run, qrels, k_list=(10,)):
     metrics.update({f"recall@{k}": [] for k in k_list})
     metrics["mrr"] = []
 
+    missing_from_run = 0
     for qid, qrel_for_query in qrels.items():
         if qid not in run:
+            missing_from_run += 1
             continue
         ranked = run[qid]
         for k in k_list:
             metrics[f"ndcg@{k}"].append(ndcg_at_k(ranked, qrel_for_query, k))
             metrics[f"recall@{k}"].append(recall_at_k(ranked, qrel_for_query, k))
         metrics["mrr"].append(reciprocal_rank(ranked, qrel_for_query))
+
+    if missing_from_run:
+        print(f"[WARN] {missing_from_run} qrels queries have no entry in the run (excluded from averages).")
 
     return {name: (sum(vals) / len(vals) if vals else 0.0) for name, vals in metrics.items()}
 

@@ -1,317 +1,642 @@
 """
-ColQwen2.5 QLoRA Finetuning Script
-Finetunes ColQwen2.5 on (query, figure) pairs using 4-bit quantization + LoRA.
-Saves best adapter based on validation nDCG@10.
+QLoRA fine-tuning for ColQwen2.5 (vidore/colqwen2.5-v0.2).
+
+Trains on (query, positive-figure) pairs built from train.json + Train_figure_qrels.tsv,
+using in-batch negatives (bidirectional ColBERT-style contrastive loss).
+Evaluates on val.json + Val_figure_qrels.tsv BEFORE training (step-0 baseline),
+after every epoch, and optionally every N optimizer steps, keeping the LoRA
+adapter with the best validation nDCG@10.
+
+The base model is loaded in 4-bit (QLoRA); only LoRA adapters on the
+language-model's attention/MLP projections are trained. The vision encoder and
+base weights stay frozen and quantized.
+
+Changes vs. previous version:
+  - step-0 validation (before any training) so you can tell "loading is broken"
+    apart from "training made it worse"
+  - adapter diagnostics: prints which PEFT adapters are attached/active
+  - LoRA target regex now excludes the vision encoder (model.visual.*), and the
+    script prints which modules actually got LoRA
+  - in-batch false negatives masked (another item in the batch that is also
+    relevant to the query is no longer treated as a negative)
+  - training pairs whose image fails to decode are dropped up front instead of
+    being trained as blank white placeholders
+  - pixel_values cast to bf16 in validation too (matches training)
+  - lower default LR (5e-5), optional --eval_every_steps
+  - qrels/corpus doc_id coverage check for the validation set
+  - optional same-paper hard negatives (--hard_negatives K): each query also
+    competes against K other figures from its own paper, which is the hard
+    part of this task (picking the right figure/panel within one paper)
 
 Usage:
-    python train_colqwen_qlora.py \
-        --train_json /path/to/Train.json \
-        --train_qrels /path/to/Train_figure_qrels.tsv \
-        --val_json /path/to/Val.json \
-        --val_qrels /path/to/Val_figure_qrels.tsv \
-        --image_dir /path/to/figures/ \
-        --output_dir colqwen-qlora-run \
-        --epochs 5
+  python train_colqwen_qlora.py \
+      --image_dir /mnt/netstore1_home/adah.holt/figures/images \
+      --train_json train.json --train_qrels Train_figure_qrels.tsv \
+      --val_json   val.json   --val_qrels   Val_figure_qrels.tsv \
+      --output_dir ./colqwen_qlora_run
+
+  Add same-paper hard negatives (2 per query here; each step then encodes
+  train_batch_size * (1 + K) images, so watch GPU memory):
+      ... --hard_negatives 2
+
+Requires: transformers, torch, peft, bitsandbytes, accelerate, pillow, colpali_engine
+  pip install -U peft bitsandbytes accelerate colpali_engine
 """
 
 import argparse
-import json
 import os
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+import random
+
 import torch
-import numpy as np
-from PIL import Image, UnidentifiedImageError
-from tqdm import tqdm
-
-# Allow very large images
-Image.MAX_IMAGE_PIXELS = None
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-from transformers import BitsAndBytesConfig
-from peft import LoraConfig, get_peft_model, TaskType
+
+from transformers import (
+    BitsAndBytesConfig,
+    get_cosine_schedule_with_warmup,
+)
 from colpali_engine.models import ColQwen2_5, ColQwen2_5_Processor
-from ranx import Qrels, Run, evaluate
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 
-# ── Args ──────────────────────────────────────────────────────────────────────
+from eval_utils import (
+    find_images,
+    build_doc_index,
+    canonical_doc_items,
+    load_queries,
+    load_qrels,
+    evaluate_run,
+    safe_open_image,
+    report_qrels_coverage,
+)
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--train_json",  required=True)
-    parser.add_argument("--train_qrels", required=True)
-    parser.add_argument("--val_json",    required=True)
-    parser.add_argument("--val_qrels",   required=True)
-    parser.add_argument("--image_dir",   required=True)
-    parser.add_argument("--output_dir",  default="colqwen-qlora-run")
-    parser.add_argument("--model_name",  default="vidore/colqwen2.5-v0.2")
-    parser.add_argument("--epochs",      type=int, default=5)
-    parser.add_argument("--batch_size",  type=int, default=2)
-    parser.add_argument("--lr",          type=float, default=5e-5)
-    parser.add_argument("--lora_r",      type=int, default=16)
-    parser.add_argument("--lora_alpha",  type=int, default=32)
-    return parser.parse_args()
+# Fallback size used whenever an image fails to decode at eval time and gets
+# replaced by a blank placeholder. (Training pairs with undecodable images are
+# dropped up front instead -- see filter_unreadable_pairs.)
+PLACEHOLDER_IMAGE_SIZE = (448, 448)
 
-# ── Data ──────────────────────────────────────────────────────────────────────
+# LoRA on the language model's projection layers only. The negative lookahead
+# (?!.*visual) excludes the vision encoder: in recent transformers versions the
+# vision blocks live under model.visual.* and their MLPs ALSO use
+# gate_proj/up_proj/down_proj, so the old regex silently put LoRA on them.
+# custom_text_proj (the ColBERT projection head) is left frozen.
+LORA_TARGET_REGEX = (
+    r"(.*(model)(?!.*visual).*\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)$)"
+)
 
-def load_queries(path):
-    with open(path) as f:
-        data = json.load(f)
-    if isinstance(data, list):
-        return {str(item["query_id"]): item["query"] for item in data}
-    return {str(k): v for k, v in data.items()}
 
-def load_qrels(path):
-    """Returns dict: {query_id: {doc_id: score}}"""
-    qrels = {}
-    with open(path) as f:
-        for line in f:
-            parts = line.strip().split()
-            if len(parts) < 4:
-                continue
-            qid, _, doc_id, score = parts[0], parts[1], parts[2], int(parts[3])
-            if score > 0:
-                qrels.setdefault(qid, {})[doc_id] = doc_id
-    return qrels
+# ---------------------------------------------------------------------------
+# Diagnostics
+# ---------------------------------------------------------------------------
 
-class FigureQueryDataset(Dataset):
-    def __init__(self, queries, qrels, image_dir):
+def describe_adapters(model, label):
+    """Print which PEFT adapters are attached and active on `model`."""
+    print(f"[ADAPTERS] {label}: model type = {type(model).__name__}")
+    cfg = getattr(model, "peft_config", None)
+    if not cfg:
+        print("  No PEFT adapters attached. If you expected the pretrained ColQwen "
+              "retrieval adapter here, the model is running WITHOUT it.")
+        return
+    for name, c in cfg.items():
+        print(f"  adapter '{name}': r={getattr(c, 'r', None)}, "
+              f"base_model={getattr(c, 'base_model_name_or_path', None)}, "
+              f"targets={getattr(c, 'target_modules', None)}")
+    try:
+        active = getattr(model, "active_adapters", None)
+        active = active() if callable(active) else active
+    except Exception as e:  # noqa: BLE001
+        active = f"(could not query: {e})"
+    print(f"  active adapters: {active}")
+
+
+def report_lora_targets(model):
+    """Print how many modules carry LoRA weights and whether any are in the vision encoder."""
+    names = [n[: -len(".lora_A")] for n, _ in model.named_modules() if n.endswith(".lora_A")]
+    vision = [n for n in names if "visual" in n]
+    print(f"[LORA] {len(names)} modules carry LoRA weights ({len(vision)} inside the vision encoder).")
+    for n in names[:5]:
+        print(f"    e.g. {n}")
+    if vision:
+        print(f"  [WARN] LoRA found in the vision encoder, e.g. {vision[:3]}. "
+              f"If these come from the NEW adapter, the target regex is too broad.")
+
+
+def filter_unreadable_pairs(dataset, doc_index):
+    """Drop training pairs whose image cannot be decoded (instead of training on blank placeholders)."""
+    docids = sorted({d for _, d in dataset.pairs})
+    print(f"Checking {len(docids)} training images can be decoded...")
+    bad = {d for d in docids if safe_open_image(doc_index[d]) is None}
+    if bad:
+        before = len(dataset.pairs)
+        dataset.pairs = [(q, d) for q, d in dataset.pairs if d not in bad]
+        print(f"  [WARN] {len(bad)} images failed to decode; dropped "
+              f"{before - len(dataset.pairs)} training pairs.")
+    else:
+        print("  All training images decode fine.")
+
+
+# ---------------------------------------------------------------------------
+# Dataset
+# ---------------------------------------------------------------------------
+
+class QueryFigurePairDataset(Dataset):
+    """One example per (query, positive figure) pair found in the qrels file."""
+
+    def __init__(self, queries, qrels, doc_index, min_relevance=1):
         self.pairs = []
-        for qid, pos_docs in qrels.items():
+        skipped_missing_query = 0
+        skipped_missing_doc = 0
+        missing_examples = []
+        for qid, docs in qrels.items():
             if qid not in queries:
+                skipped_missing_query += 1
                 continue
-            query = queries[qid]
-            for doc_id in pos_docs:
-                img_path = os.path.join(image_dir, doc_id + ".png")
-                if not os.path.exists(img_path):
-                    img_path = os.path.join(image_dir, doc_id + ".jpg")
-                if os.path.exists(img_path):
-                    self.pairs.append((query, img_path))
+            for docid, rel in docs.items():
+                if rel < min_relevance:
+                    continue
+                if docid not in doc_index:
+                    skipped_missing_doc += 1
+                    if len(missing_examples) < 10:
+                        missing_examples.append(docid)
+                    continue
+                self.pairs.append((qid, docid))
+        if skipped_missing_query:
+            print(f"[WARN] {skipped_missing_query} qrels queries had no matching entry in the query JSON.")
+        if skipped_missing_doc:
+            print(f"[WARN] {skipped_missing_doc} qrels (query, doc) pairs referenced an image not found on disk.")
+        print(f"Built {len(self.pairs)} training pairs.")
+
+        if len(self.pairs) == 0 and (skipped_missing_doc or skipped_missing_query):
+            print("\n[DIAGNOSTIC] No training pairs were built -- doc_ids in the qrels file "
+                  "don't match doc_ids built from the image directory. Compare these:")
+            print(f"  Sample qrels doc_ids expected : {missing_examples}")
+            print(f"  Sample doc_ids actually indexed: {list(doc_index.keys())[:10]}")
+            print("  If these look structurally different (e.g. 'paper::fig' vs 'fig', or a "
+                  "different separator), the image folder layout doesn't match what "
+                  "build_doc_index() assumes. Check the actual file paths, e.g.:\n"
+                  "    find <image_dir> -iname '*<some_paper_id>*'\n")
 
     def __len__(self):
         return len(self.pairs)
 
     def __getitem__(self, idx):
-        query, img_path = self.pairs[idx]
-        try:
-            image = Image.open(img_path).convert("RGB")
-            if image.width * image.height > 10_000_000:
-                ratio = (10_000_000 / (image.width * image.height)) ** 0.5
-                new_size = (int(image.width * ratio), int(image.height * ratio))
-                image = image.resize(new_size, Image.LANCZOS)
-        except (UnidentifiedImageError, OSError, Exception):
-            image = Image.new("RGB", (224, 224), color=(128, 128, 128))  # blank fallback
-        return query, image
+        return self.pairs[idx]
 
-# ── Validation ────────────────────────────────────────────────────────────────
 
-def run_validation(model, processor, val_queries, val_qrels_dict, image_dir, device, batch_size=4):
+def paper_id_of(doc_id):
+    """'2504.15247_10' / '2504.15247_3_e' -> '2504.15247' (qrels use '<paper>_<fig>[_<panel>]')."""
+    return doc_id.split("_")[0]
+
+
+class HardNegativeSampler:
+    """
+    Picks negatives for a query from the SAME paper as its positive figure,
+    skipping anything the qrels mark as relevant to that query. If the paper
+    has too few other figures, the rest are filled with random figures from
+    other papers, so every batch has the same shape.
+    """
+
+    def __init__(self, canonical_items, qrels, k, seed=0):
+        self.k = k
+        self.qrels = qrels
+        self.rng = random.Random(seed)
+        # Index by filename stem: that is the convention the qrels use, and
+        # build_doc_index() maps every stem to its file.
+        self.all_ids = sorted({p.stem for _, p in canonical_items})
+        self.by_paper = {}
+        for d in self.all_ids:
+            self.by_paper.setdefault(paper_id_of(d), []).append(d)
+
+    def report(self, pairs):
+        """Print how many same-paper negatives are actually available."""
+        avail = [
+            sum(1 for d in self.by_paper.get(paper_id_of(pos), [])
+                if self.qrels.get(qid, {}).get(d, 0) <= 0)
+            for qid, pos in pairs
+        ]
+        enough = sum(1 for a in avail if a >= self.k)
+        print(f"[HARD NEG] k={self.k}: {enough}/{len(pairs)} pairs have at least {self.k} "
+              f"same-paper negatives (mean available {sum(avail) / max(1, len(avail)):.1f}); "
+              f"the rest are topped up with random figures from other papers.")
+
+    def _rng(self):
+        # DataLoader workers each get a copy of this object; reseed per worker
+        # (info.seed differs per worker and per epoch) so they don't all draw
+        # the same sequence of negatives.
+        info = torch.utils.data.get_worker_info()
+        if info is not None and getattr(self, "_worker_seed", None) != info.seed:
+            self._worker_seed = info.seed
+            self.rng = random.Random(info.seed)
+        return self.rng
+
+    def sample(self, qid, pos_docid):
+        rng = self._rng()
+        relevant = self.qrels.get(qid, {})
+        same = [d for d in self.by_paper.get(paper_id_of(pos_docid), [])
+                if relevant.get(d, 0) <= 0]
+        negs = rng.sample(same, min(self.k, len(same)))
+        while len(negs) < self.k:
+            d = rng.choice(self.all_ids)
+            if relevant.get(d, 0) <= 0 and d not in negs:
+                negs.append(d)
+        return negs
+
+
+class Collator:
+    def __init__(self, processor, queries, doc_index, neg_sampler=None):
+        self.processor = processor
+        self.queries = queries
+        self.doc_index = doc_index
+        self.neg_sampler = neg_sampler
+
+    def __call__(self, batch):
+        qids, docids = zip(*batch)
+        texts = [self.queries[q] for q in qids]
+        # Image list = the B positives (column i belongs to query i), then any
+        # hard negatives. Every image is a candidate for every query.
+        all_docids = list(docids)
+        if self.neg_sampler is not None:
+            for q, d in zip(qids, docids):
+                all_docids.extend(self.neg_sampler.sample(q, d))
+        images = [safe_open_image(self.doc_index[d], fallback_size=PLACEHOLDER_IMAGE_SIZE)
+                  for d in all_docids]
+        # ColQwen2.5 uses separate process_images / process_queries methods
+        image_inputs = self.processor.process_images(images)
+        text_inputs = self.processor.process_queries(list(texts))
+        return image_inputs, text_inputs, qids, tuple(all_docids)
+
+
+# ---------------------------------------------------------------------------
+# Loss
+# ---------------------------------------------------------------------------
+
+def colbert_inbatch_loss(query_embeddings, doc_embeddings, processor, qids, docids, qrels,
+                         temperature=1.0):
+    """
+    Bidirectional in-batch contrastive loss (standard ColBERT/ColQwen training loss),
+    with false negatives masked: if doc j is also relevant to query i (same figure
+    sampled twice, the same query with several positives, or any other qrels hit),
+    score[i, j] is excluded from the softmax instead of being pushed down.
+
+    docids lists the B positives first (column i = positive of query i), then
+    any hard negatives, so scores has shape (B, B + B*K). Query->doc uses every
+    column; doc->query uses only the B positive columns, since a hard negative
+    has no query of its own to be matched to.
+    """
+    scores = processor.score_multi_vector(query_embeddings, doc_embeddings)  # (B, N)
+    scores = scores / temperature
+    B, N = scores.shape
+    false_neg = torch.tensor(
+        [[i != j and qrels.get(qids[i], {}).get(docids[j], 0) > 0 for j in range(N)]
+         for i in range(B)],
+        dtype=torch.bool, device=scores.device,
+    )
+    scores = scores.masked_fill(false_neg, float("-inf"))
+    labels = torch.arange(B, device=scores.device)
+    loss_q2d = F.cross_entropy(scores, labels)
+    loss_d2q = F.cross_entropy(scores[:, :B].t(), labels)
+    return (loss_q2d + loss_d2q) / 2
+
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+
+def _cast_pixels(inputs):
+    """Match the training loop: pixel_values in bf16."""
+    if "pixel_values" in inputs:
+        inputs["pixel_values"] = inputs["pixel_values"].to(torch.bfloat16)
+    return inputs
+
+
+@torch.no_grad()
+def run_retrieval_eval(model, processor, queries, qrels, doc_index, device,
+                       image_batch_size, query_batch_size, top_k, full_corpus_ids=None):
+    """
+    Encodes queries + a candidate doc pool, scores them, builds a run dict,
+    and returns nDCG@10 / MRR / etc. against qrels.
+
+    candidate pool = full_corpus_ids if given, else the union of doc_ids that
+    appear in the qrels file -- this keeps per-epoch validation fast but is a
+    much EASIER task than test-time retrieval; pass --eval_full_corpus for a
+    true full-corpus evaluation (slow, matches the deployment setting).
+    """
+    was_training = model.training
     model.eval()
 
-    # Get all unique doc IDs from val qrels
-    all_doc_ids = set()
-    for docs in val_qrels_dict.values():
-        all_doc_ids.update(docs.keys())
-    all_doc_ids = sorted(all_doc_ids)
+    qids = [q for q in qrels.keys() if q in queries]
+    texts = [queries[q] for q in qids]
+    q_embs = []
+    for i in range(0, len(texts), query_batch_size):
+        inputs = processor.process_queries(texts[i : i + query_batch_size]).to(device)
+        q_embs.append(model(**inputs).cpu())
+    max_len = max(e.shape[1] for e in q_embs)
+    dim = q_embs[0].shape[2]
+    q_embs = [
+        torch.cat([e, torch.zeros(e.shape[0], max_len - e.shape[1], dim, dtype=e.dtype)], dim=1)
+        if e.shape[1] < max_len else e
+        for e in q_embs
+    ]
+    query_embeddings = torch.cat(q_embs, dim=0).to(device)
 
-    # Encode all val images
-    image_embeddings = []
-    valid_doc_ids = []
-    images_to_encode = []
-    ids_to_encode = []
+    if full_corpus_ids is not None:
+        candidate_ids = full_corpus_ids
+    else:
+        candidate_ids = sorted({d for docs in qrels.values() for d in docs.keys() if d in doc_index})
 
-    for doc_id in all_doc_ids:
-        img_path = os.path.join(image_dir, doc_id + ".png")
-        if not os.path.exists(img_path):
-            img_path = os.path.join(image_dir, doc_id + ".jpg")
-        if os.path.exists(img_path):
-            try:
-                img = Image.open(img_path).convert("RGB")
-                if img.width * img.height > 10_000_000:
-                    ratio = (10_000_000 / (img.width * img.height)) ** 0.5
-                    img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
-                images_to_encode.append(img)
-                ids_to_encode.append(doc_id)
-            except (UnidentifiedImageError, OSError, Exception) as e:
-                print(f"\nSkipping val image {doc_id}: {e}")
-
-    for i in range(0, len(images_to_encode), batch_size):
-        batch_imgs = images_to_encode[i:i+batch_size]
-        try:
-            with torch.no_grad():
-                inputs = processor.process_images(batch_imgs).to(device)
-                emb = model(**inputs)
-            image_embeddings.append(emb.cpu())
-            valid_doc_ids.extend(ids_to_encode[i:i+batch_size])
-        except torch.cuda.OutOfMemoryError:
-            print(f"\nOOM on val batch {i}, skipping")
-        finally:
+    run_scores = {q: [] for q in qids}
+    for i in range(0, len(candidate_ids), image_batch_size):
+        batch_ids = candidate_ids[i : i + image_batch_size]
+        images = [safe_open_image(doc_index[d], fallback_size=PLACEHOLDER_IMAGE_SIZE) for d in batch_ids]
+        inputs = _cast_pixels(processor.process_images(images).to(device))
+        doc_embeddings = model(**inputs)
+        scores = processor.score_multi_vector(query_embeddings, doc_embeddings).detach().cpu()
+        for qi, qid in enumerate(qids):
+            for di, docid in enumerate(batch_ids):
+                run_scores[qid].append((scores[qi, di].item(), docid))
+        del inputs, doc_embeddings, scores
+        if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
-    if not image_embeddings:
-        return {"ndcg@10": 0.0, "recall@10": 0.0}
+    run = {q: [d for _, d in sorted(s, key=lambda x: x[0], reverse=True)[:top_k]] for q, s in run_scores.items()}
+    metrics = evaluate_run(run, qrels, k_list=(10,))
+    if was_training:
+        model.train()
+    return metrics, run_scores
 
-    # Pad to same sequence length before concatenating (images have variable patch counts)
-    max_seq = max(e.shape[1] for e in image_embeddings)
-    padded = [torch.nn.functional.pad(e, (0, 0, 0, max_seq - e.shape[1])) for e in image_embeddings]
-    all_image_emb = torch.cat(padded, dim=0)
 
-    # Build ranx qrels
-    qrels_dict = {}
-    run_dict = {}
-
-    query_ids = list(val_queries.keys())
-    query_texts = list(val_queries.values())
-
-    for i in range(0, len(query_texts), batch_size):
-        batch_qids = query_ids[i:i+batch_size]
-        batch_qtexts = query_texts[i:i+batch_size]
-
-        with torch.no_grad():
-            q_inputs = processor.process_queries(batch_qtexts).to(device)
-            q_emb = model(**q_inputs)
-
-        scores = processor.score_multi_vector(q_emb, all_image_emb)
-
-        for j, qid in enumerate(batch_qids):
-            if qid not in val_qrels_dict:
-                continue
-            s = scores[j].cpu().float().numpy()
-            sorted_idx = s.argsort()[::-1][:100]
-            run_dict[qid] = {valid_doc_ids[k]: float(s[k]) for k in sorted_idx}
-            qrels_dict[qid] = {doc_id: 1 for doc_id in val_qrels_dict[qid]}
-
-    qrels_obj = Qrels(qrels_dict)
-    run_obj = Run(run_dict)
-    metrics = evaluate(qrels_obj, run_obj, ["ndcg@10", "recall@10"])
-    return metrics
-
-# ── Training ──────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main():
-    args = parse_args()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}")
+    parser = argparse.ArgumentParser(description="QLoRA fine-tuning for ColQwen2.5")
+    parser.add_argument(
+        "--image_dir",
+        default="/mnt/netstore1_home/adah.holt/figures/images",
+    )
+    parser.add_argument("--train_json",  required=True)
+    parser.add_argument("--train_qrels", required=True)
+    parser.add_argument("--val_json",    required=True)
+    parser.add_argument("--val_qrels",   required=True)
+    parser.add_argument("--output_dir",  default="./colqwen_qlora_run")
+    parser.add_argument("--model_name",  default="vidore/colqwen2.5-v0.2")
+
+    parser.add_argument("--epochs",              type=int,   default=3)
+    parser.add_argument("--train_batch_size",    type=int,   default=2,
+                        help="Per-step batch size. This is ALSO the number of in-batch "
+                             "candidates per query (batch_size - 1 negatives); gradient "
+                             "accumulation does not add negatives. Raise it as far as memory allows.")
+    parser.add_argument("--grad_accum_steps",    type=int,   default=8)
+    parser.add_argument("--hard_negatives",      type=int,   default=0,
+                        help="Extra negatives per query drawn from the SAME paper as its positive "
+                             "figure (0 = off, plain in-batch negatives). Each step encodes "
+                             "train_batch_size * (1 + K) images, so lower the batch size if you OOM.")
+    parser.add_argument("--eval_image_batch_size", type=int, default=4)
+    parser.add_argument("--eval_query_batch_size", type=int, default=16)
+    parser.add_argument("--lr",                  type=float, default=5e-5,
+                        help="Was 2e-4. The starting model is already a tuned retriever, "
+                             "so a gentler LR is less likely to wreck it.")
+    parser.add_argument("--warmup_ratio",        type=float, default=0.05)
+    parser.add_argument("--temperature",         type=float, default=1.0)
+    parser.add_argument("--top_k_eval",          type=int,   default=10)
+    parser.add_argument("--eval_every_steps",    type=int,   default=0,
+                        help="Also validate every N optimizer steps (0 = only after each epoch).")
+    parser.add_argument("--skip_step0_eval", action="store_true",
+                        help="Skip the validation pass before training.")
+    parser.add_argument("--skip_image_check", action="store_true",
+                        help="Skip the up-front decode check of training images.")
+    parser.add_argument("--eval_full_corpus", action="store_true",
+                        help="Evaluate validation nDCG@10 against the FULL image corpus "
+                             "instead of just the docs referenced in the val qrels file. "
+                             "Much slower but matches deployment conditions.")
+
+    parser.add_argument("--lora_r",       type=int,   default=16)
+    parser.add_argument("--lora_alpha",   type=int,   default=32)
+    parser.add_argument("--lora_dropout", type=float, default=0.05)
+    parser.add_argument("--gradient_checkpointing", action="store_true", default=False,
+                        help="Enable gradient checkpointing on the inner language model to reduce "
+                             "activation memory, so you can afford a larger --train_batch_size "
+                             "(= more in-batch negatives). Verify a training step runs before trusting it.")
+
+    parser.add_argument("--device",      default=None,
+                        help="e.g. 'cuda:0'. Default: cuda:0 if available.")
+    parser.add_argument("--seed",        type=int, default=42)
+    parser.add_argument("--num_workers", type=int, default=4)
+    args = parser.parse_args()
+
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
+
+    device = torch.device(args.device) if args.device else torch.device(
+        "cuda:0" if torch.cuda.is_available() else "cpu"
+    )
+    if device.type != "cuda":
+        raise SystemExit("QLoRA (4-bit) requires a CUDA GPU. No GPU detected / selected.")
+
+    if args.train_batch_size < 8 and args.hard_negatives == 0:
+        print(f"[NOTE] train_batch_size={args.train_batch_size} gives each query only "
+              f"{args.train_batch_size - 1} in-batch negative(s). This is a weak contrastive "
+              f"signal; try --gradient_checkpointing and a larger batch.")
 
     os.makedirs(args.output_dir, exist_ok=True)
     best_adapter_dir = os.path.join(args.output_dir, "best_adapter")
 
-    # Load model in 4-bit
-    print(f"Loading {args.model_name} in 4-bit...")
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_use_double_quant=True,
-    )
-    model = ColQwen2_5.from_pretrained(
-        args.model_name,
-        quantization_config=bnb_config,
-        device_map="auto",
-        ignore_mismatched_sizes=True,
-    )
-    processor = ColQwen2_5_Processor.from_pretrained(args.model_name)
+    print("Indexing image corpus...")
+    image_paths = find_images(args.image_dir)
+    doc_index = build_doc_index(args.image_dir, image_paths)
+    canonical_items = canonical_doc_items(args.image_dir, image_paths)
+    print(f"  {len(canonical_items)} unique images indexed ({len(doc_index)} lookup keys incl. aliases).")
 
-    # Apply LoRA
-    lora_config = LoraConfig(
-        r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                        "gate_proj", "up_proj", "down_proj"],
-        lora_dropout=0.05,
-        bias="none",
-    )
-    model = get_peft_model(model, lora_config)
-    model.print_trainable_parameters()
-    model.enable_input_require_grads()
-    if hasattr(model, "gradient_checkpointing_enable"):
-        model.gradient_checkpointing_enable()
-
-    # Load data
+    print("Loading data...")
     train_queries = load_queries(args.train_json)
     train_qrels   = load_qrels(args.train_qrels)
     val_queries   = load_queries(args.val_json)
     val_qrels     = load_qrels(args.val_qrels)
 
-    dataset = FigureQueryDataset(train_queries, train_qrels, args.image_dir)
-    print(f"Training pairs: {len(dataset)}")
+    full_corpus_ids = [doc_id for doc_id, _ in canonical_items] if args.eval_full_corpus else None
+    report_qrels_coverage(
+        val_qrels,
+        full_corpus_ids if full_corpus_ids is not None else doc_index.keys(),
+        label="val qrels vs. " + ("canonical corpus ids" if full_corpus_ids is not None else "doc index"),
+    )
+
+    train_dataset = QueryFigurePairDataset(train_queries, train_qrels, doc_index)
+    if not args.skip_image_check:
+        filter_unreadable_pairs(train_dataset, doc_index)
+    if len(train_dataset) < args.train_batch_size:
+        raise SystemExit("Not enough training pairs to form a single batch.")
+
+    print("Loading base model in 4-bit (QLoRA)...")
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_use_double_quant=True,
+        # Keep the ColBERT projection head in full precision; if it is 4-bit
+        # quantized its weight.dtype becomes uint8 and the projection crashes.
+        llm_int8_skip_modules=["custom_text_proj"],
+    )
+    # Pin to a single device for training; device_map="auto" (multi-GPU split)
+    # can cause gradient/dispatch issues with PEFT + QLoRA.
+    model = ColQwen2_5.from_pretrained(
+        args.model_name,
+        quantization_config=bnb_config,
+        torch_dtype=torch.bfloat16,
+        device_map={"": device.index if device.index is not None else 0},
+    )
+    processor = ColQwen2_5_Processor.from_pretrained(args.model_name)
+    describe_adapters(model, "after loading pretrained model")
+
+    # use_gradient_checkpointing=False here: handled below on the inner
+    # Qwen2.5VL submodule rather than on the outer wrapper.
+    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
+
+    if args.gradient_checkpointing:
+        # Needed so frozen/quantized layers still pass gradients through.
+        if hasattr(model, "enable_input_require_grads"):
+            model.enable_input_require_grads()
+        inner = getattr(model, "model", None)
+        if inner is not None and hasattr(inner, "gradient_checkpointing_enable"):
+            # use_reentrant=True: non-reentrant checkpointing has a known bad
+            # interaction with bitsandbytes 4-bit layers.
+            inner.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": True})
+            model.config.use_cache = False
+            print("Gradient checkpointing enabled on model.model (Qwen2_5_VLModel), use_reentrant=True.")
+        else:
+            print("[WARN] Could not find model.model to enable gradient checkpointing on; "
+                  "proceeding without it (higher activation memory use).")
+    else:
+        print("Gradient checkpointing disabled. Reduce --train_batch_size / "
+              "--eval_image_batch_size if you hit OOM.")
+
+    lora_config = LoraConfig(
+        r=args.lora_r,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
+        bias="none",
+        target_modules=LORA_TARGET_REGEX,
+        # task_type intentionally omitted: yields a generic PeftModel whose
+        # forward() passes through to the base model, preserving the tensor
+        # output that ColQwen2_5 returns directly.
+    )
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
+    describe_adapters(model, "after adding the new LoRA adapter")
+    report_lora_targets(model)
+
+    neg_sampler = None
+    if args.hard_negatives > 0:
+        neg_sampler = HardNegativeSampler(canonical_items, train_qrels, args.hard_negatives,
+                                          seed=args.seed)
+        neg_sampler.report(train_dataset.pairs)
+        print(f"  Each step encodes {args.train_batch_size * (1 + args.hard_negatives)} images "
+              f"({args.train_batch_size} positives + "
+              f"{args.train_batch_size * args.hard_negatives} hard negatives).")
+
+    collator = Collator(processor, train_queries, doc_index, neg_sampler=neg_sampler)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=args.train_batch_size,
+        shuffle=True,
+        collate_fn=collator,
+        num_workers=args.num_workers,
+        drop_last=True,   # keep batches full-size for stable in-batch negatives
+    )
 
     optimizer = torch.optim.AdamW(
         [p for p in model.parameters() if p.requires_grad], lr=args.lr
     )
+    steps_per_epoch = len(train_loader) // args.grad_accum_steps
+    total_steps     = max(1, steps_per_epoch * args.epochs)
+    scheduler = get_cosine_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=int(total_steps * args.warmup_ratio),
+        num_training_steps=total_steps,
+    )
 
-    best_score = -1.0
+    state = {"best_score": -1.0, "best_tag": None}
 
-    for epoch in range(1, args.epochs + 1):
-        model.train()
-        total_loss = 0.0
-        count = 0
-
-        # Shuffle pairs each epoch
-        indices = torch.randperm(len(dataset)).tolist()
-
-        for i in tqdm(range(0, len(indices), args.batch_size), desc=f"Epoch {epoch}"):
-            batch_idx = indices[i:i + args.batch_size]
-            queries_batch = []
-            images_batch  = []
-            for idx in batch_idx:
-                q, img = dataset[idx]
-                queries_batch.append(q)
-                images_batch.append(img)
-
-            # Need ≥2 pairs for in-batch negatives; skip singleton batches
-            if len(batch_idx) < 2:
-                continue
-
-            try:
-                q_inputs   = processor.process_queries(queries_batch).to(device)
-                img_inputs = processor.process_images(images_batch).to(device)
-
-                q_emb   = model(**q_inputs)
-                img_emb = model(**img_inputs)
-
-                # Contrastive loss (in-batch negatives, bidirectional)
-                scores = processor.score_multi_vector(q_emb, img_emb).to(device)  # [B, B]
-                labels = torch.arange(len(batch_idx), device=device)
-                loss = (
-                    torch.nn.functional.cross_entropy(scores, labels) +
-                    torch.nn.functional.cross_entropy(scores.T, labels)
-                ) / 2
-
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-                total_loss += loss.item()
-                count += 1
-            except torch.cuda.OutOfMemoryError:
-                print(f"\nOOM on training batch {i}, skipping")
-                optimizer.zero_grad()
-            finally:
-                torch.cuda.empty_cache()
-
-        avg_loss = total_loss / max(count, 1)
-        print(f"Epoch {epoch} — avg loss: {avg_loss:.4f}")
-
-        # Save epoch checkpoint
-        epoch_dir = os.path.join(args.output_dir, f"epoch_{epoch}_adapter")
-        model.save_pretrained(epoch_dir)
-        processor.save_pretrained(epoch_dir)
-
-        # Validate
-        print(f"Running validation...")
-        val_metrics = run_validation(
-            model, processor, val_queries, val_qrels, args.image_dir, device, args.batch_size
+    def validate(tag):
+        print(f"Running validation ({tag})...")
+        metrics, _ = run_retrieval_eval(
+            model, processor, val_queries, val_qrels, doc_index, device,
+            image_batch_size=args.eval_image_batch_size,
+            query_batch_size=args.eval_query_batch_size,
+            top_k=args.top_k_eval,
+            full_corpus_ids=full_corpus_ids,
         )
-        print(f"Val nDCG@10: {val_metrics['ndcg@10']:.4f}  Recall@10: {val_metrics['recall@10']:.4f}")
+        print(f"  Validation metrics ({tag}): {metrics}")
+        return metrics
 
-        # Save best
-        score = val_metrics["ndcg@10"]
-        if score > best_score:
-            best_score = score
+    def validate_and_maybe_save(tag):
+        score = validate(tag)["ndcg@10"]
+        if score > state["best_score"]:
+            state["best_score"], state["best_tag"] = score, tag
+            print(f"  New best val nDCG@10 = {score:.4f} ({tag}) -- saving adapter to {best_adapter_dir}")
             model.save_pretrained(best_adapter_dir)
             processor.save_pretrained(best_adapter_dir)
-            print(f"  ✓ New best model saved (nDCG@10={score:.4f})")
+        return score
 
-    print(f"\nTraining complete. Best val nDCG@10: {best_score:.4f}")
-    print(f"Best adapter saved to: {best_adapter_dir}")
+    # Step-0 baseline: the new LoRA adapter is initialised to a no-op (lora_B = 0),
+    # so this should match the pretrained model evaluated in 4-bit. If it is
+    # already much worse than your pretrained baseline, the problem is loading /
+    # quantization, not training.
+    step0_score = None
+    if not args.skip_step0_eval:
+        step0_score = validate("step 0, before training")["ndcg@10"]
+
+    global_step = 0
+    for epoch in range(args.epochs):
+        model.train()
+        running_loss = 0.0
+        optimizer.zero_grad()
+
+        for step, (image_inputs, text_inputs, qids, docids) in enumerate(train_loader):
+            image_inputs = _cast_pixels({k: v.to(device) for k, v in image_inputs.items()})
+            text_inputs = {k: v.to(device) for k, v in text_inputs.items()}
+
+            # ColQwen2_5 returns the embedding tensor directly (no .embeddings field)
+            doc_embeddings   = model(**image_inputs)
+            query_embeddings = model(**text_inputs)
+
+            loss = colbert_inbatch_loss(
+                query_embeddings, doc_embeddings, processor, qids, docids, train_qrels,
+                args.temperature,
+            )
+            (loss / args.grad_accum_steps).backward()
+            running_loss += loss.item()
+
+            if (step + 1) % args.grad_accum_steps == 0:
+                torch.nn.utils.clip_grad_norm_(
+                    [p for p in model.parameters() if p.requires_grad], 1.0
+                )
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
+                global_step += 1
+
+                if global_step % 20 == 0:
+                    avg_loss = running_loss / (step + 1)
+                    print(f"epoch {epoch} step {global_step} avg_loss={avg_loss:.4f} "
+                          f"lr={scheduler.get_last_lr()[0]:.2e}")
+
+                if args.eval_every_steps and global_step % args.eval_every_steps == 0:
+                    validate_and_maybe_save(f"epoch {epoch}, step {global_step}")
+
+        print(f"Epoch {epoch} finished.")
+        validate_and_maybe_save(f"end of epoch {epoch}")
+
+        # Also keep per-epoch snapshot, useful for resuming / inspection
+        latest_dir = os.path.join(args.output_dir, f"epoch_{epoch}_adapter")
+        model.save_pretrained(latest_dir)
+
+    print(f"Training complete. Best val nDCG@10 = {state['best_score']:.4f} ({state['best_tag']})")
+    if step0_score is not None:
+        print(f"Step-0 (untrained) val nDCG@10 = {step0_score:.4f}")
+        if state["best_score"] <= step0_score:
+            print("  [WARN] Training never beat the untrained starting point on validation.")
+    print(f"Best adapter saved at: {best_adapter_dir}")
+
 
 if __name__ == "__main__":
     main()
