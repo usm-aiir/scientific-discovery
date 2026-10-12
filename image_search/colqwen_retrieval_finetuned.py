@@ -28,6 +28,8 @@ Changes vs. previous version:
   - pixel_values cast to bf16 (matches training)
   - 4-bit path now loads non-quantized modules in bf16 too
   - adapter diagnostics printed after loading
+  - FIX: a fine-tuned adapter is loaded directly (base + that adapter), instead of
+    being stacked on v0.2 where it silently replaced the pretrained adapter
   - default --output / --run_tag derived from the configuration, so base /
     fine-tuned / bf16 / 4-bit runs never overwrite each other
   - checkpoints record the run configuration and refuse to resume a different one
@@ -237,11 +239,20 @@ def main():
               "weights. Also run with --quantize_inference for a matched comparison.")
 
     # ------------------------------------------------------------------ model
-    print(f"Loading model: {args.model_name} ({precision_tag})")
+    # A fine-tuned adapter folder is a complete ColQwen checkpoint in the same
+    # format as vidore/colqwen2.5-v0.2 itself: an adapter_config.json pointing at
+    # vidore/colqwen2.5-base plus the LoRA weights. Loading it directly gives
+    # base + YOUR adapter, which is exactly what training optimised.
+    # (The previous version loaded v0.2 and then stacked the fine-tuned adapter
+    # on top with PeftModel; both adapters are named "default", so one silently
+    # replaced the other.)
+    load_source = args.lora_adapter if args.lora_adapter else args.model_name
+    print(f"Loading model: {load_source} ({precision_tag})")
     device_map = {"": torch.device(args.device).index or 0} if args.device else "auto"
+    load_kwargs = {"torch_dtype": torch.bfloat16, "device_map": device_map}
     if args.quantize_inference:
         from transformers import BitsAndBytesConfig
-        bnb_config = BitsAndBytesConfig(
+        load_kwargs["quantization_config"] = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch.bfloat16,
@@ -250,25 +261,11 @@ def main():
             # its weight.dtype becomes uint8 and subsequent casts can crash.
             llm_int8_skip_modules=["custom_text_proj"],
         )
-        model = ColQwen2_5.from_pretrained(
-            args.model_name,
-            quantization_config=bnb_config,
-            torch_dtype=torch.bfloat16,   # same as training; non-quantized modules in bf16
-            device_map=device_map,
-        )
-    else:
-        model = ColQwen2_5.from_pretrained(
-            args.model_name,
-            torch_dtype=torch.bfloat16,
-            device_map=device_map,
-        )
-    describe_adapters(model, "after loading pretrained model")
-
-    if args.lora_adapter:
-        from peft import PeftModel
-        print(f"Loading LoRA adapter from {args.lora_adapter} ...")
-        model = PeftModel.from_pretrained(model, args.lora_adapter)
-        describe_adapters(model, "after loading fine-tuned adapter")
+    model = ColQwen2_5.from_pretrained(load_source, **load_kwargs)
+    describe_adapters(model, "loaded model")
+    if not getattr(model, "peft_config", None):
+        print("  [WARN] No adapter attached: this is the untrained colqwen2.5-base model, "
+              "not a retriever. Check --model_name / --lora_adapter.")
 
     model.eval()
     processor = ColQwen2_5_Processor.from_pretrained(

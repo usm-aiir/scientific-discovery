@@ -24,6 +24,10 @@ Changes vs. previous version:
   - pixel_values cast to bf16 in validation too (matches training)
   - lower default LR (5e-5), optional --eval_every_steps
   - qrels/corpus doc_id coverage check for the validation set
+  - FIX: keeps training the pretrained ColQwen adapter. The old version added a
+    new adapter with the same name ('default'), which silently replaced the
+    pretrained retrieval adapter, so every run started from the untrained base
+  - FIX: gradient checkpointing now actually turns on (it was silently skipped)
   - optional same-paper hard negatives (--hard_negatives K): each query also
     competes against K other figures from its own paper, which is the hard
     part of this task (picking the right figure/panel within one paper)
@@ -410,7 +414,12 @@ def main():
                              "instead of just the docs referenced in the val qrels file. "
                              "Much slower but matches deployment conditions.")
 
-    parser.add_argument("--lora_r",       type=int,   default=16)
+    parser.add_argument("--new_adapter", action="store_true",
+                        help="Old behaviour: add a fresh LoRA adapter instead of continuing the "
+                             "pretrained one. WARNING: this discards the pretrained retrieval "
+                             "adapter. Only for reproducing earlier runs.")
+    parser.add_argument("--lora_r",       type=int,   default=16,
+                        help="Only used with --new_adapter.")
     parser.add_argument("--lora_alpha",   type=int,   default=32)
     parser.add_argument("--lora_dropout", type=float, default=0.05)
     parser.add_argument("--gradient_checkpointing", action="store_true", default=False,
@@ -487,41 +496,68 @@ def main():
     processor = ColQwen2_5_Processor.from_pretrained(args.model_name)
     describe_adapters(model, "after loading pretrained model")
 
-    # use_gradient_checkpointing=False here: handled below on the inner
-    # Qwen2.5VL submodule rather than on the outer wrapper.
+    # vidore/colqwen2.5-v0.2 is itself a LoRA adapter (named "default") on top of
+    # vidore/colqwen2.5-base, and transformers attaches it automatically on load.
+    # The previous version of this script then called get_peft_model(), which
+    # created a NEW adapter also named "default" -- re-initialising those LoRA
+    # weights and silently throwing away the pretrained retrieval adapter
+    # (including its LoRA on the custom_text_proj head). Training therefore
+    # started from the untrained base model. Now we keep training the
+    # pretrained adapter itself instead.
+    has_pretrained_adapter = bool(getattr(model, "peft_config", None))
+
+    # prepare_model_for_kbit_training freezes every parameter; we re-enable the
+    # LoRA weights below.
     model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
 
     if args.gradient_checkpointing:
         # Needed so frozen/quantized layers still pass gradients through.
         if hasattr(model, "enable_input_require_grads"):
             model.enable_input_require_grads()
+        # In current colpali_engine, ColQwen2_5 IS the Qwen2.5-VL model (there
+        # is no inner model.model), so enable it on whichever exists.
         inner = getattr(model, "model", None)
-        if inner is not None and hasattr(inner, "gradient_checkpointing_enable"):
+        target = inner if (inner is not None and hasattr(inner, "gradient_checkpointing_enable")) else model
+        try:
             # use_reentrant=True: non-reentrant checkpointing has a known bad
             # interaction with bitsandbytes 4-bit layers.
-            inner.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": True})
+            target.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": True})
             model.config.use_cache = False
-            print("Gradient checkpointing enabled on model.model (Qwen2_5_VLModel), use_reentrant=True.")
-        else:
-            print("[WARN] Could not find model.model to enable gradient checkpointing on; "
-                  "proceeding without it (higher activation memory use).")
+            print(f"Gradient checkpointing enabled on {type(target).__name__}, use_reentrant=True.")
+        except Exception as e:  # noqa: BLE001
+            print(f"[WARN] Could not enable gradient checkpointing ({e}); "
+                  f"proceeding without it (higher activation memory use).")
     else:
         print("Gradient checkpointing disabled. Reduce --train_batch_size / "
               "--eval_image_batch_size if you hit OOM.")
 
-    lora_config = LoraConfig(
-        r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-        bias="none",
-        target_modules=LORA_TARGET_REGEX,
-        # task_type intentionally omitted: yields a generic PeftModel whose
-        # forward() passes through to the base model, preserving the tensor
-        # output that ColQwen2_5 returns directly.
-    )
-    model = get_peft_model(model, lora_config)
-    model.print_trainable_parameters()
-    describe_adapters(model, "after adding the new LoRA adapter")
+    if has_pretrained_adapter and not args.new_adapter:
+        print("Continuing training of the PRETRAINED ColQwen adapter (not adding a new one).")
+        for name, param in model.named_parameters():
+            param.requires_grad = "lora_" in name
+    else:
+        if has_pretrained_adapter:
+            print("[WARN] --new_adapter: adding a fresh LoRA adapter. This REPLACES the "
+                  "pretrained retrieval adapter (same name 'default'); training starts "
+                  "from the untrained base model. Only use this to reproduce old runs.")
+        lora_config = LoraConfig(
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            bias="none",
+            target_modules=LORA_TARGET_REGEX,
+            # task_type intentionally omitted: yields a generic PeftModel whose
+            # forward() passes through to the base model, preserving the tensor
+            # output that ColQwen2_5 returns directly.
+        )
+        model = get_peft_model(model, lora_config)
+
+    n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    n_total = sum(p.numel() for p in model.parameters())
+    print(f"Trainable parameters: {n_train:,} / {n_total:,} ({100 * n_train / max(1, n_total):.3f}%)")
+    if n_train == 0:
+        raise SystemExit("[ERROR] No trainable parameters -- no LoRA weights were found to train.")
+    describe_adapters(model, "model being trained")
     report_lora_targets(model)
 
     neg_sampler = None

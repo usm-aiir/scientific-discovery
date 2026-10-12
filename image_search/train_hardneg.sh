@@ -2,28 +2,37 @@
 # QLoRA fine-tuning of ColQwen2.5 with same-paper hard negatives, using Adah's
 # layout: scripts in the repo (~/scientific-discovery), data and outputs on the
 # netstore (~/netstore1/finetuning). Run from the repo:
-#   ./run_train_hardneg.sh
+#   ./train_hardneg.sh
 #
 # Override settings via environment variables, e.g. if you hit out-of-memory:
-#   HARD_NEG=2 BATCH=2 ./run_train_hardneg.sh
+#   HARD_NEG=2 BATCH=2 ./train_hardneg.sh
 # Any extra arguments are passed straight to train_colqwen_qlora.py:
-#   ./run_train_hardneg.sh --epochs 2
+#   ./train_hardneg.sh --epochs 2
 
 set -euo pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-DATA_DIR="${DATA_DIR:-$HOME/netstore1/finetuning}"
+# Netstore location differs between machines: ~/netstore1 on some (e.g. ant),
+# /mnt/netstore1_home/<user> on others (e.g. turing). Use whichever exists.
+if [ -z "${NETSTORE:-}" ]; then
+  for cand in "$HOME/netstore1" "/mnt/netstore1_home/$USER"; do
+    if [ -d "$cand/finetuning" ]; then NETSTORE="$cand"; break; fi
+  done
+fi
+[ -n "${NETSTORE:-}" ] || { echo "[ERROR] Could not find the netstore (tried ~/netstore1 and /mnt/netstore1_home/$USER). Set NETSTORE=/path/to/it."; exit 1; }
+
+DATA_DIR="${DATA_DIR:-$NETSTORE/finetuning}"
 [ -d "$DATA_DIR" ] || { echo "[ERROR] Data folder not found: $DATA_DIR"; exit 1; }
 cd "$DATA_DIR"   # data files and OUTPUT_DIR are relative to here
 
-IMAGE_DIR="${IMAGE_DIR:-$HOME/netstore1/figures/images}"
-BATCH="${BATCH:-4}"
-HARD_NEG="${HARD_NEG:-3}"
-ACCUM="${ACCUM:-4}"
+IMAGE_DIR="${IMAGE_DIR:-$NETSTORE/figures/images}"
+BATCH="${BATCH:-2}"
+HARD_NEG="${HARD_NEG:-2}"
+ACCUM="${ACCUM:-8}"
 EVAL_EVERY="${EVAL_EVERY:-50}"
-OUTPUT_DIR="${OUTPUT_DIR:-colqwen_hardneg_run}"
+OUTPUT_DIR="${OUTPUT_DIR:-colqwen_continued_hardneg}"
 
-export HF_HOME="${HF_HOME:-$HOME/netstore1/HF}"
+export HF_HOME="${HF_HOME:-$NETSTORE/HF}"
 # Run on GPU 0 so GPU 1 stays free for the 2x2 retrieval runs.
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
