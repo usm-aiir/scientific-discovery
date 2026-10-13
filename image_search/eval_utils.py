@@ -31,6 +31,26 @@ PngImagePlugin.MAX_TEXT_CHUNK = 200 * 1024 * 1024  # was 1 MB; some figures embe
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # tolerate partially-written/truncated files too
 
 
+# Qwen2.5-VL's image processor raises "absolute aspect ratio must be smaller
+# than 200" for extremely thin images (e.g. horizontal rules or divider lines
+# that the scraper saved as "figures"). Pad such images with white so the
+# ratio is at most MAX_ASPECT_RATIO. Only images beyond that ratio change;
+# every normal figure is left exactly as it was.
+MAX_ASPECT_RATIO = 100
+
+
+def _pad_extreme_aspect(img):
+    w, h = img.size
+    long_side, short_side = max(w, h), max(1, min(w, h))
+    if long_side / short_side <= MAX_ASPECT_RATIO:
+        return img
+    min_short = math.ceil(long_side / MAX_ASPECT_RATIO)
+    new_w, new_h = max(w, min_short), max(h, min_short)
+    canvas = Image.new("RGB", (new_w, new_h), color=(255, 255, 255))
+    canvas.paste(img, ((new_w - w) // 2, (new_h - h) // 2))
+    return canvas
+
+
 def safe_open_image(path, fallback_size=None):
     """
     Open `path` as an RGB PIL Image, tolerating decode failures.
@@ -46,7 +66,7 @@ def safe_open_image(path, fallback_size=None):
     try:
         img = Image.open(path)
         img.load()
-        return img.convert("RGB")
+        return _pad_extreme_aspect(img.convert("RGB"))
     except Exception as e:
         print(f"[WARN] Failed to load image {path}: {e}")
         if fallback_size is not None:
