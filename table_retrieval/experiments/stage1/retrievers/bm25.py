@@ -2,10 +2,10 @@
 import numpy as np
 from transformers import AutoTokenizer
 
-from ...data import check_id, digest, load_corpus, load_json
+from ....data import check_id, digest, load_corpus, load_json
 from ..data import load_queries
-from ...stage1.retrievers.bm25 import BM25, load_lexical
-from ...stage1.text import table_text
+from ....stage1.retrievers.bm25 import BM25, load_lexical
+from ....stage1.text import table_text
 
 # Builds and saves the BM25 indexes used for evaluation.
 def index_lexical(args):

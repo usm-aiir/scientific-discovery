@@ -1,1 +1,1 @@
-"""Trackable repository tests; local experiments are deliberately excluded."""
+"""Regression tests for live retrieval and the reproducible experiments."""

@@ -1,0 +1,2679 @@
+[
+  {
+    "query_id": 2251,
+    "query": "In the study of multi-sensor fusion perception for autonomous driving, what specific category of fault is listed as causing safety violations when associated with LiDAR sensors?",
+    "label": "Medium",
+    "explanation": "Table 2 provides the column header 'Fault Type', and Table 1 provides the specific instance 'Electromagnetic Interference' associated with the safety violations caused by LiDAR faults described in the caption.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.13420::T5::b",
+      "2504.13420::T5::d"
+    ]
+  },
+  {
+    "query_id": 2252,
+    "query": "Comparing the results on the VizWiz benchmark, how does the performance of the M²IV method when applied to the first 10 layers contrast with the performance of InternVL3-8B using V2PE with a positional increment of 1/4?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must find the VizWiz score for the 'First 10 layers' configuration of M²IV in Table 1 and the VizWiz score for InternVL3-8B with V2PE and delta=1/4 in Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.04633::T3",
+      "2504.10479::T12"
+    ]
+  },
+  {
+    "query_id": 2253,
+    "query": "For the MNIST experiments in the universal rate-distortion-classification representation study, what are the final activation functions used in the encoder and the classifier architectures?",
+    "label": "Medium",
+    "explanation": "The answer requires identifying the final layer of the Encoder (Tanh) from the first table and the final layer of the Classifier (Softmax) from the second table.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.09932::T1::a",
+      "2504.09932::T1::d"
+    ]
+  },
+  {
+    "query_id": 2254,
+    "query": "How does the addition of the Diff-Prompt generator affect the performance of the CLIPSeg(PC, D=128) model in terms of mean Intersection over Union and the BLIP CapFilt-L model on the NLVR2 test-P benchmark?",
+    "label": "Hard",
+    "explanation": "The query requires the mIoU value for CLIPSeg(PC, D=128) and its Diff-Prompt variant from Table 1, and the NLVR2 test-P score for BLIP CapFilt-L and its Diff-Prompt variant from Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.21423::T3::a",
+      "2504.21423::T3::b"
+    ]
+  },
+  {
+    "query_id": 2255,
+    "query": "For the Mistral-7B backbone, how does the LLM evaluation score on the HotpotQA dataset compare between the OSCAR-llama compressor and the OSCAR-8L compressor, and what is the total inference time for the OSCAR-llama version?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must look at Table 2 to find the HotpotQA scores for both OSCAR-llama and OSCAR-8-Layers using the Mistral-7B backbone, and then look at Table 1 to find the total inference time specifically for the Mistral-7B OSCAR-llama configuration.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.07109::T1",
+      "2504.07109::T5"
+    ]
+  },
+  {
+    "query_id": 2256,
+    "query": "In the federated learning simulation using a sign-flipping attack, what is the learning rate and the notation used for the global model's hash value?",
+    "label": "Hard",
+    "explanation": "The learning rate and the specific attack type (Sign_Flipping Attack) are found in Table II (Simulation Parameters), while the notation for the hash value of the global model ($h_{g}$) is found in Table I (List of Notations).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.11088::T1",
+      "2504.11088::T2"
+    ]
+  },
+  {
+    "query_id": 2257,
+    "query": "Which spiking neural network training method is best suited for low-power edge computing on neuromorphic chips, and what is the energy consumption of the snnTrans-DHZ framework when processing images at 1024x1024 resolution?",
+    "label": "Medium",
+    "explanation": "Table 1 identifies Hebbian Learning (under Local Learning Rules) as suitable for low-power edge computing on neuromorphic chips, and Table 2 provides the energy consumption for 1024x1024 resolution (0.0266 J).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.11482::T1",
+      "2504.11482::T6"
+    ]
+  },
+  {
+    "query_id": 2258,
+    "query": "How does the level of agreement regarding the idea that measurement disturbs the system differ between the full sample and the modern sample of quantum mechanics practitioners?",
+    "label": "Medium",
+    "explanation": "Answering this requires comparing the 'Affirmation' value for the 'Measurement disturbs system' assertion from Table 3 (full sample) and Table 7 (modern sample).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.20597::T3",
+      "2504.20597::T7"
+    ]
+  },
+  {
+    "query_id": 2259,
+    "query": "When using the deterministic method for proton beams with an injected energy of 50 MeV, how does the standard deviation of the lateral distribution at the entrance depth compare between water and air?",
+    "label": "Medium",
+    "explanation": "To answer this, one must find the 'D' (deterministic method) value for 50 MeV at the entrance depth (EN) in Table 1 (water) and compare it to the 'D' value for 50 MeV at the entrance depth (x1) in Table 2 (air).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.00340::T3",
+      "2504.00340::T5"
+    ]
+  },
+  {
+    "query_id": 2260,
+    "query": "For the chemical compounds Ba5AlIr2O11 and Sr2MgReO6, compare the number of distinct barium (Ba) atomic positions with the calculated inter-electronic interaction (IEI) value for the z-component in the [0.5, 0.5, 0] lattice vector direction.",
+    "label": "Medium",
+    "explanation": "The number of distinct Ba atomic positions (Ba1 through Ba5) is found in Table 1 of the first paper, and the IEI z-component value (0.45 meV) for the [0.5, 0.5, 0] vector is found in Table 1 of the second paper.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.00105::T1",
+      "2504.13687::T1"
+    ]
+  },
+  {
+    "query_id": 2261,
+    "query": "Comparing different genetic algorithm variations, what is the speedup for the pe-cGA-FIFO-1 method with a population size of 10 on the Onemax Problem, and how does the MBF for PIMP compare to Tournament Selection for the Koza-1 dataset when using subtree mutation?",
+    "label": "Medium",
+    "explanation": "The first part of the query requires finding the speedup value (1.247907) for the pe-cGA-FIFO-1 method from Table 2. The second part requires comparing the MBF values for PIMP (3.7E-4) and Tournament Selection (1.4E-3) for the Koza-1 dataset under subtree mutation from Table 1.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.02972::T1",
+      "2504.06110::T12"
+    ]
+  },
+  {
+    "query_id": 2262,
+    "query": "In the study on metabolic syndrome prediction, which hybrid data balancing method achieved the highest test accuracy, and which physiological feature showed the highest rate of modification in the counterfactual analysis?",
+    "label": "Medium",
+    "explanation": "The highest test accuracy is found in Table 1 (ADASYN+CTGAN with 0.871), and the feature with the highest change rate is found in Table 2 (BloodGlucose at 50.3%).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.06987::T4",
+      "2504.06987::T6"
+    ]
+  },
+  {
+    "query_id": 2263,
+    "query": "When training the HeartSimSage model for cardiac mechanics, what are the specific subset node counts and learning rates that both result in a validation loss of 0.0091 and a training speed of 23 seconds per epoch?",
+    "label": "Medium",
+    "explanation": "Table 1 identifies that a subset node count (n_S) of 300 achieves a val loss of 0.0091 and a speed of 23s, while Table 2 identifies that a learning rate (eta) of 0.0001 achieves the same metrics.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.18968::T10",
+      "2504.18968::T7"
+    ]
+  },
+  {
+    "query_id": 2264,
+    "query": "Which microservices from the edge-based dataflow processing benchmarks have a size that exceeds the maximum image size limit specified in the simulation settings for the decentralized application-centric orchestration framework?",
+    "label": "Medium",
+    "explanation": "The user must identify the maximum image size limit (500 MB) from Table 1 and then compare it against the sizes of the various microservices in Table 2 (converted from GB to MB) to determine which ones are larger.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.00761::T1::a",
+      "2504.08741::T2"
+    ]
+  },
+  {
+    "query_id": 2265,
+    "query": "Comparing different PET imaging analysis methods, what is the mean squared error for the INR-LoRes-3D model and the mean squared error when using multiple image-derived input functions for the liver?",
+    "label": "Medium",
+    "explanation": "The query requires the MSE for the INR-LoRes-3D model from Table 1 and the MSE for 'multiple' IDIFs in the liver from Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.17114::T1",
+      "2504.17122::T1"
+    ]
+  },
+  {
+    "query_id": 2266,
+    "query": "Comparing the H@1 scores on the WikiDiverse and RichpediaMEL datasets, how does the performance of the GPT-4o-mini model after reranking compare to that of the MELOV and M3EL systems?",
+    "label": "Medium",
+    "explanation": "The GPT-4o-mini reranking scores for WikiDiverse and RichpediaMEL are found in Table 1, while the H@1 scores for the MELOV and M3EL systems on those same datasets are found in Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.15135::T3",
+      "2504.15135::T6"
+    ]
+  },
+  {
+    "query_id": 2267,
+    "query": "For the tile code with parameters [[288,8,12]], what are the box size and check weight, and what are the stabilizer pairs used for the $3\\times 3$ boxes?",
+    "label": "Medium",
+    "explanation": "The code parameters [[288,8,12]] are linked to the box size (3) and check weight (6) in Table 1, while the specific weight-6 stabilizer pairs for that same code are listed in Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.09171::T1",
+      "2504.09171::T2"
+    ]
+  },
+  {
+    "query_id": 2268,
+    "query": "Comparing the LiteTrack-B6 and LiteTrack-B8 trackers, which one has a higher AUC score on the SonarT165 dataset and what are their respective GFLOPs values?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must look at Table 1 to find the AUC scores for LiteTrack-B6 and LiteTrack-B8 on the SonarT165 benchmark, and then refer to Table 2 to find the FLOPs (GFLOPs) for those same two trackers.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.15609::T10",
+      "2504.15609::T4"
+    ]
+  },
+  {
+    "query_id": 2269,
+    "query": "Across studies on eigenvalue problems, what is the nature of the asymmetric solutions for 1-dimensional nonlinear cases when the parameter C is between tilde-C and s0, and what are the calculated Rayleigh quotients R[u5] for the p-Laplacian on a unit square when p is 2.1, 2.5, and 3.0?",
+    "label": "Medium",
+    "explanation": "The first part of the query is answered by Table 1 (which identifies 'c-solutions' or non-monotone asymmetric solutions for the given range of C), and the second part is answered by Table 2 (which lists the R[u5] values for the specified p values).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.07548::T1",
+      "2504.12836::T2::b"
+    ]
+  },
+  {
+    "query_id": 2270,
+    "query": "Which factor numbers are identified as matching the actual usage status for obstacles, and what are the specific phenomena and associated codes listed for the object classification?",
+    "label": "Medium",
+    "explanation": "Table 1 is required to identify the factor numbers for matching obstacles (O-01 and O-02), while Table 2 is required to find the phenomena and codes for the object classification (Shiny; T-01, T-02, T-03, T-04, T-24, T-25).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.14913::T5",
+      "2504.14913::T6::a"
+    ]
+  },
+  {
+    "query_id": 2271,
+    "query": "Comparing robot localization techniques, what is the true success rate for the SEG-SIM-3 method in a 144 square meter area, and what is the average query runtime for the LazyLoc approach on the Aachen Day-Night v1.1 dataset?",
+    "label": "Medium",
+    "explanation": "The true success rate for SEG-SIM-3 (75.7%) is found in Table 1, and the average query runtime for LazyLoc (101.33 ms) is found in Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.03249::T1",
+      "2504.17636::T2"
+    ]
+  },
+  {
+    "query_id": 2272,
+    "query": "What are the parameters for the known NMDS codes that support 2-designs when the block size is either 5, 6, q-6, or q-7?",
+    "label": "Medium",
+    "explanation": "The answer requires combining the block sizes and their corresponding parameters from Table 1 (which lists codes with block sizes 6 and q-7) and Table 2 (which lists codes with block sizes 5 and q-6).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.06546::T1::m",
+      "2504.06546::T1::q"
+    ]
+  },
+  {
+    "query_id": 2273,
+    "query": "In the reaction pathways shown in Figure 2, which vertex labels are associated with the energy barriers of 13.95 kJ mol-1 in pathway 2, and which of these labels are listed in the molecular structure reference table?",
+    "label": "Medium",
+    "explanation": "Table 2 identifies the vertices involved in the reactions for pathway 2 with energy barriers of 13.95 kJ mol-1 (specifically v0, v1, and v13), and Table 1 provides the list of vertex labels that have corresponding molecular structure entries.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.10609::T3::b",
+      "2504.10609::T4"
+    ]
+  },
+  {
+    "query_id": 2274,
+    "query": "Which specific terms related to sexual orientation are common to the keywords extracted for both sampled articles listed in the evaluation of keyword extraction algorithms?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must look at the keywords provided for the first sample article in Table 1 and the keywords for the second sample article in Table 2 and identify the overlapping terms (e.g., heterosexual, bisexual, lesbian, gay).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.21667::T3::b",
+      "2504.21667::T3::c"
+    ]
+  },
+  {
+    "query_id": 2275,
+    "query": "For the Uni4D framework, how many GFLOPS are required during pre-training, and what was the batch size used for the pre-training phase on the MSR dataset?",
+    "label": "Medium",
+    "explanation": "The GFLOPS value for Uni4D is found in Table 1, while the pre-training batch size for the MSR dataset is located in Table 9.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.04837::T1",
+      "2504.04837::T9"
+    ]
+  },
+  {
+    "query_id": 2276,
+    "query": "For the B-meson decay channel B_s^0 to K+K-, what are the experimental values for both the mixing-induced CP asymmetry and the ACP^ΔΓ observable?",
+    "label": "Medium",
+    "explanation": "The experimental value for the mixing-induced CP asymmetry for B_s^0 to K+K- is found in Table 4, while the experimental value for the ACP^ΔΓ observable for the same decay channel is found in Table 7.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.05209::T4",
+      "2504.05209::T7"
+    ]
+  },
+  {
+    "query_id": 2277,
+    "query": "How does the PSNR of the Comprehensive Relighting method on synthetic static data for individuals with brown skin compare to the tPSNR of its version with recurrent blending on synthetic sequences?",
+    "label": "Medium",
+    "explanation": "The query requires the 'Ours' PSNR for brown skin from Table 6 (31.77) and the 'Ours+temporal+blend' tPSNR from Table 4 (33.588) to make the comparison.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.03011::T4",
+      "2504.03011::T6"
+    ]
+  },
+  {
+    "query_id": 2278,
+    "query": "For the Kurcuma dataset novelty detection task, how do the AUROC scores in the AKUD environment and the AUPRC scores across seven scenarios compare for the SND and GNL methods in category 6?",
+    "label": "Medium",
+    "explanation": "The query requires the AUROC values for SND and GNL from Table 13 (AKUD environment) and the AUPRC values for the same methods from Table 6 (seven scenarios), specifically for category 6.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.21247::T13",
+      "2504.21247::T6"
+    ]
+  },
+  {
+    "query_id": 2279,
+    "query": "Compare the symbols used to represent the value function and terminal cost in the notations for Chapter 2 and Chapter 5.",
+    "label": "Medium",
+    "explanation": "To answer this, the user must look at Table 1 (Chapter 2) to find $J(x,t;\\eta)$ and $\\psi(x(t_f))$, and then look at Table 2 (Chapter 5) to find $J_t(x_t)$ and $C_T(x_T)$.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.17154::T2",
+      "2504.17154::T5"
+    ]
+  },
+  {
+    "query_id": 2280,
+    "query": "How does the projected number of AI chips in the most powerful supercomputer by June 2030 compare to the total estimated public production of H100 and H200 chips?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must find the extrapolated number of AI chips for June 2030 from Table 1 (2 million) and the public estimate for H100/H200 production from Table 3 (2.5M -- 4.5M).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.16026::T1",
+      "2504.16026::T3"
+    ]
+  },
+  {
+    "query_id": 2281,
+    "query": "How does the performance of the FocusTrack algorithm on the Anti-UAV test set compare in terms of AUC to the different configuration variants of its Search Region Adjustment Module?",
+    "label": "Medium",
+    "explanation": "Table 1 provides the Anti-UAV AUC for the full FocusTrack method (67.7), while Table 2 provides the AUC for four different ablation variants of the Search Region Adjustment Module (ranging from 60.4 to 62.6).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.13604::T1",
+      "2504.13604::T5"
+    ]
+  },
+  {
+    "query_id": 2282,
+    "query": "In the context of sentiment analysis for tweets and text classification, what are examples of how specific text modifications (like paraphrasing) and multi-model voting (ensemble workers) are used to handle data challenges such as inconsistency or lack of clarity?",
+    "label": "Medium",
+    "explanation": "Table 2 provides examples of how paraphrasing clarifies original tweets to aid sentiment analysis, while Table 1 demonstrates how an ensemble of workers can identify consistent, similar, or outlier predictions to improve classification stability.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.05603::T4",
+      "2504.18884::T4"
+    ]
+  },
+  {
+    "query_id": 2283,
+    "query": "Which open-source tools for using large language models in hardware design were released between May and November 2024, and do they focus on creating high-level synthesis code or optimizing existing circuit designs?",
+    "label": "Medium",
+    "explanation": "To answer this, one must identify open-source tools from Table 1 (SynthAI, HLSPilot, C2HLSC) and Table 2 (RTLRewriter) that fall within the specified date range, then categorize them by their purpose (HLS code generation vs. design optimization) based on the table they appear in.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.03711::T6",
+      "2504.03711::T7"
+    ]
+  },
+  {
+    "query_id": 2284,
+    "query": "Between the Mistral 7B Instruct-v0.2 model using the NPO method and the Gemma2 2B Instruct model using RepBend, which one demonstrates a lower rate of harmful content generation on the Harmbench benchmark?",
+    "label": "Medium",
+    "explanation": "The answer requires finding the Harmbench score for the NPO method applied to Mistral 7B from Table 1 (0.06) and the Harmbench score for RepBend applied to Gemma2 2B from Table 2 (6.56), then comparing the two values.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.01550::T3",
+      "2504.01550::T6"
+    ]
+  },
+  {
+    "query_id": 2285,
+    "query": "For the database used to predict contact area of rough surfaces, what is the specific range of the far-field displacement and what is the designated target parameter?",
+    "label": "Medium",
+    "explanation": "The range of the far-field displacement is found in the first table's contents (Range [5, 45]), and the target parameter is identified in the second table (Target parameter).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.17354::T1::a",
+      "2504.17354::T1::b"
+    ]
+  },
+  {
+    "query_id": 2286,
+    "query": "For users with a 6 kVA power contract and night-time usage, how do the discriminative scores for full-year curves and daily profiles compare between the LDM and TimeGAN models, and how do these specific scores relate to the results for 9 kVA users with night-time usage?",
+    "label": "Medium",
+    "explanation": "Table 2 provides the specific fidelity scores (D_year and D_profile) for the 6 kVA night-time category, and Table 1 provides the corresponding scores for the 9 kVA night-time category, allowing for a comparison across both power contracts for those specific models.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.14046::T1",
+      "2504.14046::T3"
+    ]
+  },
+  {
+    "query_id": 2287,
+    "query": "In the context of four-body ballistic lunar transfers, what are the lower and upper limits for the optimization variables CfD and CfR, and how do the delta-v values of the resulting Sample I and Sample II solutions compare to the WSB method?",
+    "label": "Medium",
+    "explanation": "The first part of the query requires Table 2 to find the boundaries for CfD and CfR, and the second part requires Table 3 to compare the delta-v of Sample I/II against the WSB method.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.16804::T2",
+      "2504.16804::T3"
+    ]
+  },
+  {
+    "query_id": 2288,
+    "query": "For a point tracking model that outputs predictions immediately after consuming each frame, how does the performance of the TAPNext-B version on the Kinetics Strided dataset in terms of average accuracy (AJ) compare to its processing latency on an Nvidia V100 GPU when tracking 512 points?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must first identify TAPNext-B as a 'frame' latency model from Table 1 and retrieve its AJ score for the Kinetics Strided dataset. Then, they must look up Table 2 to find the specific latency for the TAPNext-B model on a V100 GPU using 512 query points.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.05579::T1",
+      "2504.05579::T2"
+    ]
+  },
+  {
+    "query_id": 2289,
+    "query": "Among the substances erbium oxide, Fe3GaTe2, and Fe3GeTe2, which one has a numeric value of approximately 48 for either its model-predicted energy splitting (cm-1) or its first-neighbor magnetic exchange coefficient (meV)?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must check Table 1 for erbium oxide's model energy splittings (where 48 cm-1 appears) and Table 2 for the J1 values of Fe3GaTe2 (48.67 meV) and Fe3GeTe2 (78.84 meV).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.07234::T2",
+      "2504.17998::T1"
+    ]
+  },
+  {
+    "query_id": 2290,
+    "query": "Comparing the performance of the Agent (Llama, Unif.) method across the ACS and WE datasets, which dataset shows a better classification score and a better marginals score?",
+    "label": "Medium",
+    "explanation": "The classification and marginals scores for Agent (Llama, Unif.) on the ACS dataset are found in Table 1, and the scores for the same method on the WE dataset are found in Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.14368::T7::a",
+      "2504.14368::T9::b"
+    ]
+  },
+  {
+    "query_id": 2291,
+    "query": "For the Qwen2.5-32B-Instruct-AWQ model that showed a 5.13% accuracy increase on the anli r1 dataset, how many maximum training steps and what batch size were used during its GRPO training?",
+    "label": "Medium",
+    "explanation": "Table 2 identifies that the 32B (AWQ) model achieved a +5.13% change on anli r1. Table 1's caption specifies that the second column of values applies to the 32B model, providing the max steps (4000) and batch size (8).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.18376::T3",
+      "2504.18376::T6"
+    ]
+  },
+  {
+    "query_id": 2292,
+    "query": "What percentage of users had a mostly positive sentiment toward the digital counselor, and what are the specific questions used to measure the 'Value' factor in the experience assessment questionnaire?",
+    "label": "Medium",
+    "explanation": "The percentage for 'mostly positive' (Quite Positive) sentiment is found in Table 1, while the specific items used to assess 'Value' are listed in Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.21702::T2",
+      "2504.21702::T3"
+    ]
+  },
+  {
+    "query_id": 2293,
+    "query": "For the Coma cluster redshift survey conducted with the MMT telescope, how many galaxy spectra were obtained in total across all observation fields, and what is the 68% upper limit for intrinsic scatter along ln Y when the scaling relation of subhalos relates the number of member subhalos (Nsub,mem) to the 2D mass (M2D)?",
+    "label": "Medium",
+    "explanation": "The total number of galaxy spectra (3048) is found by summing the 'Number of Redshifts' column in Table 1, and the intrinsic scatter upper limit (0.057) is found in Table 4 for the row where X is Nsub,mem and Y is M2D.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.05616::T1",
+      "2504.05616::T4"
+    ]
+  },
+  {
+    "query_id": 2294,
+    "query": "Compare the Hubble constant (H0) estimations obtained via MCMC simulation for the distance modulus curve versus the apparent magnitude curve.",
+    "label": "Medium",
+    "explanation": "The query requires retrieving the MCMC simulation estimate for H0 from Table 2 (distance modulus curve) and Table 3 (apparent magnitude curve) to perform a comparison.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.19523::T2",
+      "2504.19523::T3"
+    ]
+  },
+  {
+    "query_id": 2295,
+    "query": "Comparing the two representative result sets for the stability and convergence of the optimization procedure for the helium atom's ground state energy in a double-zeta approximation, what is the difference between the first value in the first set and the first value in the second set?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must locate the first value from Table 1 (0.9820538) and the first value from Table 2 (0.9820604) and calculate the difference between them.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.10086::T1::k",
+      "2504.10086::T1::q"
+    ]
+  },
+  {
+    "query_id": 2296,
+    "query": "When organizing science literature based on problem statement contributions, how does the Scychic method compare to the top-down baseline in terms of its strict accuracy and the total number of LLM calls required?",
+    "label": "Medium",
+    "explanation": "The query requires extracting the Strict-Acc and # of Calls for both Scychic and the Top-down baseline specifically for the 'Problem Statement' contribution type, which are found in the provided tables.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.13834::T2::a",
+      "2504.13834::T2::c"
+    ]
+  },
+  {
+    "query_id": 2297,
+    "query": "In a comparison of how different retrieval-augmented generation systems answer a query regarding the influence of artistic crossovers on social and political relations, how did FG-RAG perform relative to both LightRAG and GraphRAG according to the LLM decisions?",
+    "label": "Medium",
+    "explanation": "Table 4 provides the comparison between FG-RAG and LightRAG, while Table 9 provides the comparison between FG-RAG and GraphRAG for the same query.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.07103::T4",
+      "2504.07103::T9"
+    ]
+  },
+  {
+    "query_id": 2298,
+    "query": "Compare the period-luminosity relation alpha coefficient from the 11-band study with the a1 coefficient from the current work in the 6-band comparison for the J, H, Ks, and W1 photometric bands.",
+    "label": "Medium",
+    "explanation": "To answer this, the user must extract the alpha values for the specified bands from Table 1 (from paper 2504.19656) and the 'This work' a1 values for the same bands from Table 2 (from paper 2504.15045).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.15045::T2",
+      "2504.19656::T3"
+    ]
+  },
+  {
+    "query_id": 2299,
+    "query": "Comparing the RFW and FairFace datasets at a false acceptance rate of 10^-4, which facial recognition model configuration achieves the lowest bias in false acceptance (BFAR) across both benchmarks?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must look at the BFAR values for all three models (ArcFace, ArcFace + PASS-s, and ArcFace + CF) specifically for the FAR=10^-4 column in Table 1 (RFW) and Table 2 (FairFace) to identify which configuration consistently has the lowest value.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.19370::T1",
+      "2504.19370::T2"
+    ]
+  },
+  {
+    "query_id": 2300,
+    "query": "Compared to the DNGaussian baseline used in the LLFF ablation study, how does the final DropoutGS model's PSNR perform relative to the SparseNeRF method on the same LLFF dataset?",
+    "label": "Medium",
+    "explanation": "The user must find the PSNR of the 'Baseline' (defined as DNGaussian) and the 'DropoutGS' model from Table 4, and then compare the DropoutGS PSNR (19.35) to the SparseNeRF PSNR (19.86) found in Table 1 for the LLFF dataset.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.09491::T1",
+      "2504.09491::T4"
+    ]
+  },
+  {
+    "query_id": 2301,
+    "query": "Compare the number of clones identified in the AlmostFull project using the clone-finder tool to the T1 recall percentage achieved by the DB-SSCD (Faiss) indexing method on the BCB-FULL dataset.",
+    "label": "Medium",
+    "explanation": "The number of clones for the AlmostFull project is found in Table 1 (102), and the T1 recall percentage for DB-SSCD (Faiss) is found in Table 2 (100%).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.17972::T3::a",
+      "2504.19129::T1"
+    ]
+  },
+  {
+    "query_id": 2302,
+    "query": "Comparing the two sets of results for the Deep Neural Network model trained across all datasets during noise draw 2, which of the five listed percentage metrics remained identical and which changed?",
+    "label": "Medium",
+    "explanation": "The query requires comparing the five values in Table 1 with the five values in Table 2 to identify which are the same (9.7% and 59.7%) and which differ.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.09330::T9::o",
+      "2504.09330::T9::"
+    ]
+  },
+  {
+    "query_id": 2303,
+    "query": "For the TriviaQA and MMLU benchmarks, how do the p-values for the STAMP method when detecting contamination compare to the p-values obtained when testing for membership on uncontaminated and contaminated Pythia models?",
+    "label": "Medium",
+    "explanation": "This query requires data from Table 1 to find the STAMP p-values for TriviaQA and MMLU, and data from Table 2 to find the Pythia Uncontaminated and Pythia Contaminated p-values for those same two benchmarks.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.13416::T1",
+      "2504.13416::T2"
+    ]
+  },
+  {
+    "query_id": 2304,
+    "query": "For the sequential recommendation datasets Beauty, Toys, Sports, and Yelp, what is the relationship between the average session length of the dataset and the performance of the LINK model in terms of Recall@20 (R@20)?",
+    "label": "Medium",
+    "explanation": "To answer this, one must retrieve the average session lengths (AvgLen) for the four specific datasets from Table 1 and the corresponding Recall@20 (R@20) scores for the LINK model from Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.15057::T1",
+      "2504.15057::T4"
+    ]
+  },
+  {
+    "query_id": 2305,
+    "query": "Comparing the historical observations from 2020 to 2023 for models within 1.5 orders of magnitude of the frontier with the 2028 forecasts for models exceeding 10^25 FLOPs, how does the observed count in 2020 compare to the predicted median for 2028?",
+    "label": "Medium",
+    "explanation": "The query requires the observed value for 'Within 1.5 OOM' in 2020 from Table 2 and the median value for the '> 1025' FLOP threshold in 2028 from Table 1.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.16138::T13",
+      "2504.16138::T6"
+    ]
+  },
+  {
+    "query_id": 2306,
+    "query": "Comparing the attribution techniques SHAP and Shapley across different studies, what is the processing time for a single sample in the Frequency domain with a #1a patch size, and what is the median stability-sensitivity metric (SSM) for the MNIST dataset?",
+    "label": "Medium",
+    "explanation": "The processing time for SHAP in the Frequency domain with patch size #1a is found in Table 1 (61.26 s), and the SSM for Shapley on the MNIST dataset is found in Table 2 (1.18).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.03773::T6",
+      "2504.08553::T1"
+    ]
+  },
+  {
+    "query_id": 2307,
+    "query": "Which provider offers the online model that exhibits failure patterns such as reasoning repetition and reliance on prompt examples?",
+    "label": "Medium",
+    "explanation": "Table 1 identifies the failure reasons (reasoning repetition and reliance on prompt examples) as belonging to DeepSeek-R1. Table 2 shows that DeepSeek-R1 is an online model provided by Huoshan.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.11239::T3",
+      "2504.11239::T6"
+    ]
+  },
+  {
+    "query_id": 2308,
+    "query": "In the evaluation of LLM jailbreak detection, which specific configurations of the AbnorDetector system are compared against GradSafe?",
+    "label": "Medium",
+    "explanation": "The query requires identifying both the 'Lite' version from Table 1 and the 'Full' version from Table 2 to provide a complete list of AbnorDetector configurations used in the comparison with GradSafe.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.00446::T1::b",
+      "2504.00446::T1::c"
+    ]
+  },
+  {
+    "query_id": 2309,
+    "query": "For the DDT-XL/2 model that achieved an FID of 1.28 on ImageNet 512x512, what was the diffusion sampler used and the corresponding number of diffusion steps?",
+    "label": "Medium",
+    "explanation": "Table 1 provides the FID score of 1.28 for the DDT-XL/2 (500K) model, and Table 2 provides the general training and evaluation hyperparameters for the DDT models, including the diffusion sampler (Euler-ODE) and the diffusion steps (250).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.05741::T3",
+      "2504.05741::T7"
+    ]
+  },
+  {
+    "query_id": 2310,
+    "query": "For a bimodal distribution, how does the mean squared error of the Llp regression method change when the sample size increases from 50 to 200, given an alpha value of 0.4?",
+    "label": "Hard",
+    "explanation": "The answer requires looking up the MSEllp value for alpha 0.4 in Table 2 (where n=50) and comparing it to the MSEllp value for alpha 0.4 in Table 1 (where n=200).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.18695::T14",
+      "2504.18695::T6"
+    ]
+  },
+  {
+    "query_id": 2311,
+    "query": "For the positive 3-braids described in paper 2504.06194, what are the group structures of the Khovanov homology at homological degree 3 for the specific braid closure denoted as \u001aΔ^{2}σ_{1}^{5}σ_{2}^{4} compared to the group structures listed in the column for homological degree 3 in the general homology table?",
+    "label": "Hard",
+    "explanation": "To answer this, one must look at the cell in homological degree 3 and various quantum degrees in Table 23 for the specific braid \u001aΔ^{2}σ_{1}^{5}σ_{2}^{4} and compare those results to the entries in the '3' column of Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.06194::T23",
+      "2504.06194::T3::a"
+    ]
+  },
+  {
+    "query_id": 2312,
+    "query": "How do the Pass@2 and Pass@4 performance scores of the Optimal decoding strategy for Gemma on GSM8k compare to the Top-k w/Oracle results for Qwen-2.5-0.5B?",
+    "label": "Medium",
+    "explanation": "The answer requires comparing the 'Optimal' row in Table 1 (Gemma) with the 'Top-k w/Oracle' row in Table 2 (Qwen-2.5-0.5B) for the specific Pass@2 and Pass@4 metrics.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.10478::T1",
+      "2504.10478::T2"
+    ]
+  },
+  {
+    "query_id": 2313,
+    "query": "For the Asian Dragon and Happy Buddha models, how does the processing time of the RT-HDIST method compare when calculating distance between different objects versus calculating distance on decimated versions of those same models?",
+    "label": "Medium",
+    "explanation": "The answer requires Table 5 for the 'different objects' benchmark (Thai-Asian D. and Tahi-Buddha) and Table 2 for the 'decimation benchmarks' (Asian Dragon and Happy Buddha) using the 'Ours' method.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.13436::T2",
+      "2504.13436::T5"
+    ]
+  },
+  {
+    "query_id": 2314,
+    "query": "For the biblical themes associated with the Tower of Babel and the sacrifice of Isaac, which AI image generators and specific software versions were used to create the corresponding images?",
+    "label": "Medium",
+    "explanation": "Table 2 maps the specific biblical themes (Tower of Babel, Sacrifice of Isaac) to 'prompt 2' and 'prompt 3'. Table 1 provides the list of AI generators (DALL·E, Midjourney, Stable Diffusion) and their specific versions (e.g., V5.1, V1.5) used to produce images from those prompts.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.16974::T1",
+      "2504.16974::T2"
+    ]
+  },
+  {
+    "query_id": 2315,
+    "query": "What are the different values of alpha and beta used in the hallucination detection evaluations comparing AbnorDetector and Lynx?",
+    "label": "Medium",
+    "explanation": "The query requires combining the alpha and beta parameters listed in Table 1 (0.25 for both) and Table 2 (0.125 for both).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.00446::T2::t",
+      "2504.00446::T2::y"
+    ]
+  },
+  {
+    "query_id": 2316,
+    "query": "How does the impact of highlighting on time spent compare to the effect of a user's 5-item trust score on the same metric?",
+    "label": "Medium",
+    "explanation": "Table 1 provides the variation in time spent associated with the 'Highlighting' feature, while Table 2 provides the regression coefficient for '5-item trust' relative to 'Times Spent (sec.)'.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.06435::T15",
+      "2504.06435::T17"
+    ]
+  },
+  {
+    "query_id": 2317,
+    "query": "Among the various text-to-speech systems mentioned, which model has the smallest number of parameters, and how does the word error rate of the F5-R method compare across its general, hard, and noisy test sets?",
+    "label": "Medium",
+    "explanation": "The first part of the query requires identifying the model with the fewest parameters from Table 1 (SlimSpeech with 5.48 M), and the second part requires extracting the WER values for F5-R from Table 2 (1.37%, 8.79%, and 1.33%).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.02407::T2",
+      "2504.07776::T1"
+    ]
+  },
+  {
+    "query_id": 2318,
+    "query": "How many female patients with an Early Stage Cancer diagnosis were included in the unbalanced model dataset?",
+    "label": "Medium",
+    "explanation": "The table lists the count of patients by diagnosis and sex; for 'Early Stage Cancer (Diagnosis 0)' and sex 'F', the count is 113.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08824::T1"
+    ]
+  },
+  {
+    "query_id": 2319,
+    "query": "What is the chemical abundance [X/H] of Li I for the star HD 290621?",
+    "label": "Medium",
+    "explanation": "The table lists the chemical abundances for HD 290621, showing that the value for Li I is 2.07 ± 0.21.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.09222::T14"
+    ]
+  },
+  {
+    "query_id": 2320,
+    "query": "What is the F1 score on the FUNSD dataset for the Qwen2-VL-7B model fine-tuned with RIDGE, DocVQA, and FUNSD?",
+    "label": "Easy",
+    "explanation": "The table shows that for the '+RIDGE+DocVQA+FUNSD' dataset combination, the F1 % on the FUNSD dataset is 67.54.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.10659::T3"
+    ]
+  },
+  {
+    "query_id": 2321,
+    "query": "What is the pipeline stage count for the 2-wide processor operating at 1GHz in the MERE hardware-software co-design study?",
+    "label": "Hard",
+    "explanation": "The table explicitly lists '6-stage' for the '2-wide, @1GHz' processor configuration.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.01582::T3::c"
+    ]
+  },
+  {
+    "query_id": 2322,
+    "query": "What values were tested for the steering coefficient and alpha in the RMU hyperparameter sweep?",
+    "label": "Medium",
+    "explanation": "The table lists the specific values tested for both 'Steering Coefficient' and 'Alpha ($\\alpha$)' during the RMU hyperparameter sweep.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08192::T4"
+    ]
+  },
+  {
+    "query_id": 2323,
+    "query": "What is the approximate power of the L-bar test using the W-S model for a sample size of 200 when the expected gain eta is 0.1?",
+    "label": "Easy",
+    "explanation": "The table contains a section for the 'L-bar test, W-S model' where the intersection of the row n=0200 and the column eta=0.1 provides the power value 0.8101.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.13158::T3"
+    ]
+  },
+  {
+    "query_id": 2324,
+    "query": "How does the performance space diversity of the overall design space compare to the reference design space in the DeepWheel dataset?",
+    "label": "Medium",
+    "explanation": "The table provides specific numerical values for 'Performance Space Diversity' for both the 'Reference Design Space' (106.93) and the 'Overall Design Space' (124.00).",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11347::T4"
+    ]
+  },
+  {
+    "query_id": 2325,
+    "query": "What prompt was used specifically for BLIP models to generate image captions in the FLIP Reasoning Challenge?",
+    "label": "Easy",
+    "explanation": "The table lists the 'BLIP prompt' under the 'Captioning' section as 'What do you see in this image? Please describe it'.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.12256::T3"
+    ]
+  },
+  {
+    "query_id": 2326,
+    "query": "Comparing HPMDubbing and StyleDubber on the Voxceleb2 dataset, which method achieved a lower LSE-D score?",
+    "label": "Hard",
+    "explanation": "The table lists LSE-D scores for various methods on Voxceleb2; HPMDubbing has a score of 6.98, while StyleDubber has a score of 11.38.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.02386::T9"
+    ]
+  },
+  {
+    "query_id": 2327,
+    "query": "In the ablation experiment for the hyperparameter alpha in L_Noise, which alpha value results in the highest IoU score?",
+    "label": "Medium",
+    "explanation": "The table shows IoU values for different alpha settings, with alpha = 0.6 achieving the highest value of 77.69.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.16487::T4"
+    ]
+  },
+  {
+    "query_id": 2328,
+    "query": "How do the statefinder diagnostic values (r, s) of the Chaplygin Gas model compare to those of the Quintessence model?",
+    "label": "Medium",
+    "explanation": "The table provides the (r, s) values for both the Chaplygin Gas (>1, <0) and Quintessence (<1, >0) models, allowing for a direct comparison of their diagnostic values.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.16826::T3"
+    ]
+  },
+  {
+    "query_id": 2329,
+    "query": "What is the FLORES-200 BLEU score for the English-Cebuano (eng_Latn-ceb_Latn) language pair using the L2-Mono-Alt method?",
+    "label": "Medium",
+    "explanation": "The table lists BLEU scores for various language pairs and methods; the intersection of the 'eng_Latn-ceb_Latn' row and 'L2-Mono-Alt' column provides the value 19.46.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.04152::T7"
+    ]
+  },
+  {
+    "query_id": 2330,
+    "query": "How does the MGCA model compare to the FUM model in terms of AUC for personalized news recommendation?",
+    "label": "Medium",
+    "explanation": "The table lists the AUC percentages for both the MGCA (67.07) and FUM (66.81) models, allowing for a direct performance comparison.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.14130::T3"
+    ]
+  },
+  {
+    "query_id": 2331,
+    "query": "Which prestellar or starless core in Perseus showed a detection of both PN(1-0) and SiO(1-0) according to Yebes 40 m observations?",
+    "label": "Easy",
+    "explanation": "Table 2 lists several cores and their detection status for PN(1-0) and SiO(1-0); Core 326 is the only one with checkmarks (✓) for both columns.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.17849::T2"
+    ]
+  },
+  {
+    "query_id": 2332,
+    "query": "Which human-LLM systems reviewed in the Sphere framework evaluation were assessed for both effectiveness and efficiency, involved both users and experts, and had an immediate evaluation duration, and how do the metrics used to quantify alignment in the LLMCode qualitative analysis differ in nature from the categories listed in these Sphere framework annotations?",
+    "label": "Hard",
+    "explanation": "To answer this, one must first filter Table 3 for 'Effective' and 'Efficiency', then cross-reference those systems in Table 1 for 'User', 'Expert', and 'Immediate' duration. Finally, they must compare the specific numeric alignment metrics (IoU, MHD) from Table 2 with the categorical checkmarks (dimensions of evaluation) found in the Sphere tables.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.07971::T2",
+      "2504.07971::T3",
+      "2504.16671::T1"
+    ]
+  },
+  {
+    "query_id": 2333,
+    "query": "In the comparison of ACER decrease on test2017 for fingerprint presentation attack detection, which specific categories or labels are associated with Megvii in the closeness binary code module evaluation?",
+    "label": "Medium",
+    "explanation": "The table content contains specific labels ('+', 'CC') under the 'Megvii' column, which provides the answer that is not available in the caption or referencing text.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11066::T13::c"
+    ]
+  },
+  {
+    "query_id": 2334,
+    "query": "What is the posterior mean and 95% HPD interval for theta_1 using the DA-AVM_F method on the Faux Mesa high school network ERGM data?",
+    "label": "Easy",
+    "explanation": "The table provides the Posterior mean (95% HPD) for theta_1 across different methods, including DA-AVM_F, for the Faux Mesa high school network data.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.17147::T3::a"
+    ]
+  },
+  {
+    "query_id": 2335,
+    "query": "What is the 4-shot accuracy of Gemini for detecting adversarial patches of size 55x55 on the APRICOT dataset?",
+    "label": "Easy",
+    "explanation": "The table lists the accuracy for different methods on APRICOT with varying patch sizes; the intersection of the 'Ours (Gemini)' row and the '4S' column under '$55\\times 55$' provides the answer (93.92%).",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.04858::T1"
+    ]
+  },
+  {
+    "query_id": 2336,
+    "query": "What is the alignment focus for Personalized RAG and Agents as described in the survey overview?",
+    "label": "Medium",
+    "explanation": "The table 'Overview of Personalized RAG and Agent' lists 'User Fact' as the alignment target.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.10147::T1::s"
+    ]
+  },
+  {
+    "query_id": 2337,
+    "query": "What is the SRCC result for the method 'Ours (S)' when pre-trained on the BID dataset and tested on the BID dataset?",
+    "label": "Hard",
+    "explanation": "The table lists the SRCC result for 'Ours (S)' with 'BID' as the pre-trained dataset under the 'BID' SRCC column as 0.894.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.05076::T19"
+    ]
+  },
+  {
+    "query_id": 2338,
+    "query": "What is the MMLU accuracy for the TaCQ sensitivity measure when using 2-bit quantization?",
+    "label": "Easy",
+    "explanation": "The table lists 'TaCQ' under the 'Sensitivity Measure' column and provides its corresponding MMLU accuracy of 49.19 in the '2-bits' column.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.07389::T5"
+    ]
+  },
+  {
+    "query_id": 2339,
+    "query": "What is the computational complexity of deciding positive resolvability for non-unary finitely-ambiguous NFAs?",
+    "label": "Easy",
+    "explanation": "The table shows that for 'PR' (Positive Resolvability) and 'non-unary' alphabet, the complexity for 'finitely-ambiguous' NFAs is NL-complete.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.10234::T1"
+    ]
+  },
+  {
+    "query_id": 2340,
+    "query": "What was the exposure time in kiloseconds for the IXPE observation of Cyg X–1 on May 15, 2022?",
+    "label": "Easy",
+    "explanation": "The table contains a row with the date 2022 May 15, the telescope IXPE, and an exposure time of 327.0 ks.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.10981::T1"
+    ]
+  },
+  {
+    "query_id": 2341,
+    "query": "Which foundation model achieved the highest precision percentage in the comparison of sentiment analysis models?",
+    "label": "Medium",
+    "explanation": "The table lists the precision percentages for three foundation models, with Qwen2.5-3B-Instruct having the highest value at 75.0%.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.02429::T2"
+    ]
+  },
+  {
+    "query_id": 2342,
+    "query": "What is the dropout rate for the 512-filter fully connected layer in the neural network architecture used for CIFAR-10 and CIFAR-100?",
+    "label": "Easy",
+    "explanation": "The table lists a 'Fully connected' operation with 512 filters and a corresponding dropout value of 0.5.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.13569::T2"
+    ]
+  },
+  {
+    "query_id": 2343,
+    "query": "How do scaling and rotation transformations affect the performance of the SMILE model on K400m and SSv2m datasets?",
+    "label": "Easy",
+    "explanation": "The table provides the K400m and SSv2m performance scores for 'None', 'Scaling', 'Rotation', and 'Both' transformations.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.00527::T4::c"
+    ]
+  },
+  {
+    "query_id": 2344,
+    "query": "What was the difference in RMSE between Optuna and Fine-tuning Cycle 2 for the InceptionV3 model after 2 epochs?",
+    "label": "Easy",
+    "explanation": "The table contains a row for InceptionV3 at 2 epochs with a 'Difference' value of -0.3364.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.06006::T4"
+    ]
+  },
+  {
+    "query_id": 2345,
+    "query": "What is the average number of participants for the 0%-3% centrality bin in Au+Au collisions at $\\sqrt{\\text{s}_{\\text{NN}}}$ = 200 GeV measured by the sPHENIX detector?",
+    "label": "Medium",
+    "explanation": "The table provides the average number of participants (<Npart>) for various centrality bins, including the 0%-3% bin, which is listed as 359.3 ± 2.1.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.02240::T4"
+    ]
+  },
+  {
+    "query_id": 2346,
+    "query": "What are the length (AL) and velocity (AV) transition rates for the Kα2α3 transitions of Mg using the AS4 active space?",
+    "label": "Easy",
+    "explanation": "The table provides the Kα2α3 transition rates for Magnesium (Mg) across different active spaces, with specific values listed for AL and AV under the AS4 row.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.10467::T1"
+    ]
+  },
+  {
+    "query_id": 2347,
+    "query": "Which inter-agent protocols that have reached the Landing development stage utilize RPC and OAuth, and what evaluation dimensions would be used to measure the security of such interactions?",
+    "label": "Hard",
+    "explanation": "Table 1 and Table 3 identify the inter-agent protocols in the 'Landing' stage that use 'RPC' and 'OAuth' (specifically A2A), and Table 2 provides the evaluation dimensions (such as authentication mode diversity and role/ACL) used to measure 'Security'.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.16736::T2",
+      "2504.16736::T3",
+      "2504.16736::T4"
+    ]
+  },
+  {
+    "query_id": 2348,
+    "query": "Which large language models experienced the most significant expected safety reductions across bias categories after adversarial testing?",
+    "label": "Easy",
+    "explanation": "The text referencing Table 5 explicitly names DeepSeek V3 671B, Gemma2 27B, and Gemini 2.0 Flash as having the most significant safety reductions.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.07887::T5::d"
+    ]
+  },
+  {
+    "query_id": 2349,
+    "query": "For the leaf disease classification task using the PyTorch and TensorRT framework, how does the accuracy of the hybrid distillation method compare to the accuracy of the quantized MobileNetV3 model, and which of the models listed in the general specifications table has a larger file size than the SqueezeNet model?",
+    "label": "Hard",
+    "explanation": "Answering this requires Table 1 to identify the framework, Table 3 to find the hybrid distillation accuracy, Table 4 to find the quantized MobileNetV3 accuracy and SqueezeNet's size, and Table 2 to compare other models' file sizes against SqueezeNet.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.16128::T10",
+      "2504.16128::T2",
+      "2504.16128::T6",
+      "2504.16128::T8"
+    ]
+  },
+  {
+    "query_id": 2350,
+    "query": "What was the DSC value for the SynthFM model when segmenting the Aorta in CT scans using the (3,2) prompt group?",
+    "label": "Medium",
+    "explanation": "The table lists DSC values for various modalities and structures; for the CT modality and Aorta structure, the SynthFM value under the (3,2) prompt group is 77.34.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08177::T1"
+    ]
+  },
+  {
+    "query_id": 2351,
+    "query": "Comparing the AnywhereXR system to aerial data capture and vector tile mapping approaches, what are the specific quality characteristics of its street-level view, and how does this relate to the objective measures of missing trees and noticeable buildings for the Rotterdam Cube Buildings location?",
+    "label": "Hard",
+    "explanation": "To answer this, the user must identify the street-level quality of AnywhereXR ('Authentic shapes, random textures') from Table 3, and then find the specific objective measures for the 'rcb' (Rotterdam Cube Buildings) location—specifically '#missing trees' (1.10) and '#noticeable building' (4.00)—from Table 2.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.14065::T1",
+      "2504.14065::T2",
+      "2504.14065::T3"
+    ]
+  },
+  {
+    "query_id": 2352,
+    "query": "What is the configuration of the L2 Cache in the hardware evaluated for the FireGuard microarchitecture?",
+    "label": "Medium",
+    "explanation": "The table lists the Memory section, which specifies the L2 Cache as 512KB, 8-way, with 12 MSHRs.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.01380::T2::a"
+    ]
+  },
+  {
+    "query_id": 2353,
+    "query": "Comparing the semileptonic transitions of doubly charmed baryons, which process among $\\Xi^{++}_{cc}\\rightarrow\\Lambda^{+}_{c}\\bar{\\ell}\\nu_{\\ell}$, $\\Xi^{+}_{cc}\\rightarrow\\Xi^{0}_{c}\\bar{\\ell}\\nu_{\\ell}$, and $\\Xi^{+}_{cc}\\rightarrow\\Sigma^{0}_{c}\\bar{\\ell}\\nu_{\\ell}$ has the lowest value for the $F_{1}(q^{2})$ form factor at $q^{2}=0$?",
+    "label": "Hard",
+    "explanation": "To answer this, one must look at the ${\\cal F}(q^{2}=0)$ row and $F_{1}(q^{2})$ column across Table 7 (for $\\Xi^{++}_{cc}\\rightarrow\\Lambda^{+}_{c}$), Table 8 (for $\\Xi^{+}_{cc}\\rightarrow\\Xi^{0}_{c}$), and Table 12 (for $\\Xi^{+}_{cc}\\rightarrow\\Sigma^{0}_{c}$) and compare the values -0.31, -0.37, and -1.55.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.17030::T12",
+      "2504.17030::T7",
+      "2504.17030::T8"
+    ]
+  },
+  {
+    "query_id": 2354,
+    "query": "What is the generalization accuracy of a VIT small model trained on the cinic dataset and tested on the cifar dataset using the SGD optimizer?",
+    "label": "Medium",
+    "explanation": "The table provides a row for the VIT small model with cinic training and cifar test datasets using the SGD optimizer, showing a generalization accuracy of 60%.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.17618::T3"
+    ]
+  },
+  {
+    "query_id": 2355,
+    "query": "In the HRScene PANDA dataset example, which multiple-choice option is the correct answer for the question asking how many riding persons are in the second image?",
+    "label": "Medium",
+    "explanation": "The table shows two examples from HRScene-PANDA; for the second image/question, the cell explicitly states 'Answer: B'.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.18406::T27"
+    ]
+  },
+  {
+    "query_id": 2356,
+    "query": "What is the zero-shot average accuracy of the Llama-2-70B model using the RTN quantization method at INT4 without QEP?",
+    "label": "Easy",
+    "explanation": "The table contains a row for INT4 bits, the RTN method, QEP marked as '✗', and a corresponding value for the Llama-2-70B column, which is 0.7325.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.09629::T2"
+    ]
+  },
+  {
+    "query_id": 2357,
+    "query": "What are the common training-time scaling approaches used to enhance both the capabilities and safety of Large Language Models?",
+    "label": "Easy",
+    "explanation": "The text and table indicate that training-time scaling includes scaling model size, data, and compute, as well as RLHF alignment and adversarial training.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.20965::T1::b"
+    ]
+  },
+  {
+    "query_id": 2358,
+    "query": "What are the various categories of task types analyzed in the systematic review concerning presence within virtual reality environments?",
+    "label": "Hard",
+    "explanation": "The answer requires combining the task types listed across all three provided table segments: collaborative design and construction, simulations and training, and sensory and multisensory interaction.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.13845::T2::d",
+      "2504.13845::T2::f",
+      "2504.13845::T2::j"
+    ]
+  },
+  {
+    "query_id": 2359,
+    "query": "How does the accuracy of the best-performing xLSTM-ECG configuration compare to the Top-1 accuracy achieved for Pacemaker Rhythm diagnosis in the contrastive learning study on Japanese ECG data?",
+    "label": "Medium",
+    "explanation": "To answer this, one must find the highest accuracy from Table 1 (87.78% for Layer fusion) and compare it to the specific Top-1 accuracy for 'Pacemaker Rhythm' in Table 2 (89.41%).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.09302::T9",
+      "2504.16101::T5"
+    ]
+  },
+  {
+    "query_id": 2360,
+    "query": "What is the definition of 'Key Word Extraction' as a rewrite direction in the IterQR framework?",
+    "label": "Medium",
+    "explanation": "The 'Definition' column for the 'Key Word Extraction' row provides the explanation of what this rewrite direction entails.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.05309::T5"
+    ]
+  },
+  {
+    "query_id": 2361,
+    "query": "Which Oracle Bone Inscription denoising method achieved the highest Acc@1 accuracy when trained on the Oracle-P15K dataset?",
+    "label": "Medium",
+    "explanation": "The table compares various denoising methods (DnCNN, InvDN, Uformer, Restormer, CharFormer, and KBNet) and shows that KBNet achieved the highest Acc@1 on the Oracle-P15K dataset (90.25%).",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.09555::T3"
+    ]
+  },
+  {
+    "query_id": 2362,
+    "query": "How do Average Pooling, View Pooling, and Depth Pooling compare in terms of overall accuracy and average class accuracy for 3D point cloud classification tasks from M to S* and S to S*?",
+    "label": "Easy",
+    "explanation": "Table 6 provides the OA (Overall Accuracy) and ACA (Average Class Accuracy) for Average pooling, View Pooling, and Depth Pooling across two different data shifts (M to S* and S to S*).",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.12456::T6"
+    ]
+  },
+  {
+    "query_id": 2363,
+    "query": "How many nodes and edges are there in the REDDIT-B dataset for graph classification?",
+    "label": "Medium",
+    "explanation": "The table provides the 'Nodes' (859254) and 'Edges' (995508) for the REDDIT-B dataset column.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.16360::T6"
+    ]
+  },
+  {
+    "query_id": 2364,
+    "query": "Which types of shift and scale normalizations are applied as preprocessing and postprocessing for the PDE equations in the main experiments?",
+    "label": "Hard",
+    "explanation": "The provided table fragments list 'Spa. Shift+Scale' (spatial shift and scale) and 'Val. Shift+Scale' (value shift and scale) as the normalizations used for the equations.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.00510::T4::i",
+      "2504.00510::T4::m",
+      "2504.00510::T4::o"
+    ]
+  },
+  {
+    "query_id": 2365,
+    "query": "For the DataMaestro engine, which design-time parameters define buffer depth and what are the core utilization percentages for the BERT-Base and VGG-16 workloads on VPK180 FPGA, and what symbol does DeepCompile use to represent the size limit for a prefetch group buffer?",
+    "label": "Hard",
+    "explanation": "The query requires information from Table 1 (design-time buffer depth parameters for DataMaestro), Table 3 (utilization percentages for specific workloads in DataMaestro), and Table 2 (the symbol for prefetch group buffer size in DeepCompile).",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.09983::T1",
+      "2504.14091::T2",
+      "2504.14091::T3"
+    ]
+  },
+  {
+    "query_id": 2366,
+    "query": "Comparing underwater acoustic technologies, what are the specific configuration settings for the Indiformer model, how does its signal-to-noise ratio (SNR) on the DeepShip dataset compare to DPRNN and Mossformer, what is its average SNR across pairwise mixture classes in DeepShip, and what is the root mean square error (RMSE) of the STNet model for sound speed profile prediction?",
+    "label": "Hard",
+    "explanation": "This query requires Table 2 for Indiformer's configuration (e.g., learning rate, n_repeat), Table 4 to compare Indiformer's DeepShip SNR against DPRNN and Mossformer, Table 1 for the average SNR of pairwise mixtures in DeepShip, and Table 3 for the STNet RMSE value.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.08371::T1",
+      "2504.08371::T3",
+      "2504.08371::T4",
+      "2504.17912::T5"
+    ]
+  },
+  {
+    "query_id": 2367,
+    "query": "How does the CLIP_S score of the MAD method compare to Prompt2Prompt in text-to-makeup editing?",
+    "label": "Easy",
+    "explanation": "The table lists CLIP_S scores for both Prompt2Prompt (0.641) and MAD (0.655 and 0.662), allowing for a direct comparison of their performance.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.02545::T3"
+    ]
+  },
+  {
+    "query_id": 2368,
+    "query": "What is the CC value for the MeshNet method when performing non-textured mesh saliency prediction using only geometry?",
+    "label": "Easy",
+    "explanation": "The table provides quantitative results for various methods on non-textured mesh saliency prediction; the row for 'MeshNet' under the 'Geometry' section contains the CC value of 0.5423.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.01466::T1"
+    ]
+  },
+  {
+    "query_id": 2369,
+    "query": "What attribute is associated with Bengalis in the StereoSet stereotype representation table?",
+    "label": "Easy",
+    "explanation": "The table explicitly lists the Target 'Bengalis' with the Relation 'eat' and the Attribute 'rice and fish every day'.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.03352::T1"
+    ]
+  },
+  {
+    "query_id": 2370,
+    "query": "For the Audio-Visual Separator's A2A method, how does its Class Recall Score (CRS) differ when generating mixed images compared to when it is used for separated background images?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must find the CRS for the A2A method in Table 1 (mixed images, where it is 3.71%) and Table 3 (separated background images, where it is 0.57%) and compare them.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.18283::T1",
+      "2504.18283::T3"
+    ]
+  },
+  {
+    "query_id": 2371,
+    "query": "What is the F-1 score of the SeizureTransformer model in the event-based scale for the TUSZ testing set?",
+    "label": "Medium",
+    "explanation": "The table provides the F-1 score for SeizureTransformer under the 'Event-based' scale category, which is 0.6752.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.00336::T3"
+    ]
+  },
+  {
+    "query_id": 2372,
+    "query": "Which model had the lowest performance drop on the ChartQA-RL dataset when compared to standard ChartQA?",
+    "label": "Easy",
+    "explanation": "The 'Drop' column in Table 2 shows the percentage decrease for various models, with Socratic Chart w MA having the lowest value of 23.9%.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.09764::T2"
+    ]
+  },
+  {
+    "query_id": 2373,
+    "query": "Compare the validity scores of the DMol and DiGress models across the MOSES, SBM, and Planar datasets.",
+    "label": "Hard",
+    "explanation": "To answer this, the searcher must look at Table 2 for the MOSES results, Table 3 for the SBM and Planar results, and combine these values to compare the two specific models across all three datasets.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.06312::T2",
+      "2504.06312::T5",
+      "2504.06312::T8"
+    ]
+  },
+  {
+    "query_id": 2374,
+    "query": "For the studies employing hitting set explanations, how do the sizes of the groups categorized as Cluster 1 and Cluster 2 differ between the analysis of divorce predictors and the analysis of college majors?",
+    "label": "Hard",
+    "explanation": "To answer this, the user must identify the group sizes for Cluster 1 and 2 in the divorce predictors study (90 and 80 couples from Table 1) and compare them to the group sizes for Cluster 1 and 2 in the college majors study (148 and 20 majors from Table 3), while using Table 2 to confirm these clusters refer to the college majors analysis.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.20846::T12",
+      "2504.20846::T5",
+      "2504.20846::T7"
+    ]
+  },
+  {
+    "query_id": 2375,
+    "query": "Compare the number of non-isomorphic simple graphs with 9 vertices that have cospectral mates for the 3-Laplacian matrix to the value of f(10), the value in the lookup table for the pair (2, 4), and the spectrum value associated with r = xy in the gcd-graph G_R(D).",
+    "label": "Hard",
+    "explanation": "This query requires the 3-Laplacian cospectral mate count for 9 vertices from Table 1, the f(10) value from Table 3, the lookup value for indices 2 and 4 from Table 2, and the lambda value for r = xy from Table 4.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.00404::T1",
+      "2504.04461::T1",
+      "2504.17553::T1::b",
+      "2504.17553::T3::b"
+    ]
+  },
+  {
+    "query_id": 2376,
+    "query": "What learning rate and total batch size were used for the LoRA fine-tuning experiments?",
+    "label": "Medium",
+    "explanation": "The table provides the specific values for 'Learning rate' (5x10^-4) and 'Total Batch size' (128) used in the fine-tuning configuration.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11277::T8"
+    ]
+  },
+  {
+    "query_id": 2377,
+    "query": "What was the selected learning rate and batch size used for training the SpaRE-2B model?",
+    "label": "Medium",
+    "explanation": "The 'Selected' column in Table 4 specifies that the learning rate was 3x10^-5 and the batch size was 64 for SpaRE-2B training.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.20648::T4"
+    ]
+  },
+  {
+    "query_id": 2378,
+    "query": "For the T-ASE journal, which covers disciplines like Robotics and Control Systems, what are the model stability results for TC-W2V when l equals 0.6, and how does the LDA model perform in terms of CV for the year 2004 when K=18?",
+    "label": "Hard",
+    "explanation": "This query requires Table 1 to identify the journal's discipline (Robotics and Control Systems), Table 2 to find the stability value for TC-W2V at l=0.6, and Table 3 to find the CV value for the LDA model in 2004 with K=18.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.08743::T1::a",
+      "2504.08743::T4",
+      "2504.08743::T6"
+    ]
+  },
+  {
+    "query_id": 2379,
+    "query": "In the functional mapping of professional roles across Knowledge Representation (KR), Knowledge Organization (KO), and KO-Enriched KR methodologies, which specific role IDs are associated with the Knowledge Engineer and the Reader?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must look at Table 1 to find the ID for the Knowledge Engineer (2.1) and Table 2 to find the ID for the Reader (3).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.11492::T6::e",
+      "2504.11492::T6::l"
+    ]
+  },
+  {
+    "query_id": 2380,
+    "query": "Regarding the algebraic multigrid method, what are the optimal kernel functions based on PICP for the constant coefficient Poisson equation, and how do the predicted theta values and iteration counts for the variable coefficient Poisson equation and the diffusion equation vary as the problem size n increases?",
+    "label": "Hard",
+    "explanation": "The query requires Table 1 for the optimal kernel functions (highest PICP), Table 3 for theta and iteration trends in the variable coefficient Poisson equation, and Table 4 (or Table 2) for theta and iteration trends in the diffusion equation.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.14930::T11",
+      "2504.14930::T13",
+      "2504.14930::T5",
+      "2504.14930::T8"
+    ]
+  },
+  {
+    "query_id": 2381,
+    "query": "How does removing both the co-training (CT) and co-alignment (CA) operations affect the Recall@100 of the GRAM model?",
+    "label": "Medium",
+    "explanation": "The table provides a comparison between the full GRAM model (12.54% Recall@100) and the version without CT and CA (7.64% Recall@100).",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.01403::T3"
+    ]
+  },
+  {
+    "query_id": 2382,
+    "query": "Which functions are associated with the E2 irreducible representation of the C6v group?",
+    "label": "Medium",
+    "explanation": "The 'functions' column for the row corresponding to the E2 irreducible representation lists (x^2-y^2, xy).",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.09511::T1"
+    ]
+  },
+  {
+    "query_id": 2383,
+    "query": "How does the addition of exo-centric information affect the FVD score of the ConsistI2V video diffusion model?",
+    "label": "Medium",
+    "explanation": "The table shows the FVD score for ConsistI2V both without (✗) and with (✓) exo-centric information, allowing for a comparison of the results.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11732::T7"
+    ]
+  },
+  {
+    "query_id": 2384,
+    "query": "What is the L-omega value for the topic of Abortion when using the gpt-35-23-0613 model?",
+    "label": "Hard",
+    "explanation": "The table provides the L-omega value (1.14) for the 'Abortion' topic under the 'gpt-35-23-0613' column.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08954::T2"
+    ]
+  },
+  {
+    "query_id": 2385,
+    "query": "For the Swiss German and Swiss Standard German datasets used in the DigiSpon benchmark, how do the total word counts and the word error rates for children's speech compare to the inter-annotator agreement scores between human annotators A and B?",
+    "label": "Hard",
+    "explanation": "The query requires the total word counts from Table 3, the children's WER (word error rate) for both language variants from Table 1, and the Cohen's Kappa scores for annotators A&B from Table 2.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.00780::T1",
+      "2504.00780::T18",
+      "2504.00780::T5::b"
+    ]
+  },
+  {
+    "query_id": 2386,
+    "query": "What is the dynamical mass of the red giant star in KIC 10001167?",
+    "label": "Easy",
+    "explanation": "The table provides the 'Mass_dyn' value for the red giant in KIC 10001167 as 0.9337 ± 0.0077 M_sun.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.17853::T1"
+    ]
+  },
+  {
+    "query_id": 2387,
+    "query": "For the Rosenbrock function, compare the statistical significance results from the paired Student t-tests and paired F-tests when evaluating Monte Carlo against Quasi-Monte Carlo and Latin Hypercube Sampling tuning methods, and identify the objective values for these methods across the first five independent runs.",
+    "label": "Hard",
+    "explanation": "This query requires Table 2 for the t-test p-values of the Rosenbrock function, Table 3 for the F-test p-values of the same function, and Table 1 for the objective values of the first five runs for the MC, QMC, and LHS methods.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.18545::T10",
+      "2504.18545::T5",
+      "2504.18545::T6"
+    ]
+  },
+  {
+    "query_id": 2388,
+    "query": "In the ablation study of CMaP-SAM on the PASCAL-5i dataset, what is the 1-shot mIoU when the adapter module is removed but the contraction mapping prior and refiner are kept?",
+    "label": "Easy",
+    "explanation": "The table shows that for the configuration with the Contraction Mapping Prior and Refiner checked but the Adapter unchecked, the 1-shot mIoU is 73.0.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.05049::T6"
+    ]
+  },
+  {
+    "query_id": 2389,
+    "query": "What is the density of the Animal-behavior dataset used for formal context evaluation?",
+    "label": "Easy",
+    "explanation": "The table contains a row for 'Animal-behavior' with a corresponding 'density' value of 40.3.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08778::T4"
+    ]
+  },
+  {
+    "query_id": 2390,
+    "query": "Compare the CLIP-T and DINO scores of the FLUX-based IP-Adapter implementation against the FLUX-LoRA model.",
+    "label": "Medium",
+    "explanation": "The CLIP-T and DINO metrics for the FLUX-based IP-Adapter are found in Table 1, while the Tclip (CLIP-T) and Idino (DINO) metrics for FLUX-LoRA are found in Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.02612::T4",
+      "2504.11478::T4"
+    ]
+  },
+  {
+    "query_id": 2391,
+    "query": "What is the mean prompt length and standard deviation for the PromptWizard optimizer on the SST-5 dataset using the Llama-3.3-70B model?",
+    "label": "Medium",
+    "explanation": "The table contains a row for the Llama-3.3-70B model and PromptWizard optimizer, and a column for the SST-5 dataset, which intersects at the value 563± 36.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.16005::T15"
+    ]
+  },
+  {
+    "query_id": 2392,
+    "query": "What is the Butcher tableau for the third order L-stable explicit and implicit semi-implicit-explicit Runge-Kutta scheme?",
+    "label": "Easy",
+    "explanation": "The caption of Table 8 explicitly states it contains the tableau for the explicit and implicit third order L-stable scheme.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.09969::T8::b"
+    ]
+  },
+  {
+    "query_id": 2393,
+    "query": "What specific prompt templates are used for the FT and ST steps in the Fast-Slow-Thinking (FST) framework's word-level disturbance experiments?",
+    "label": "Medium",
+    "explanation": "The table lists the 'Prompt Template' for both the FT (Fast Thinking) and ST (Slow Thinking) steps as part of the word-level disturbances analysis for FST.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08690::T13::a"
+    ]
+  },
+  {
+    "query_id": 2394,
+    "query": "What is the average value of the Moderation API as reported in the Tinker Tales storytelling framework?",
+    "label": "Medium",
+    "explanation": "The table caption specifies '(a) Moderation API (Avg.)' and the cell value provides the average as 0.0038.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.13969::T6::i"
+    ]
+  },
+  {
+    "query_id": 2395,
+    "query": "What is the overall average Precision@1 score for the EVA-CLIP model on the MMEB benchmark?",
+    "label": "Easy",
+    "explanation": "The table lists the MMEB benchmark results for various models; for EVA-CLIP (Sun et al. 2023b), the 'Overall' column shows a score of 45.6.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.17432::T1"
+    ]
+  },
+  {
+    "query_id": 2396,
+    "query": "What is the calcium abundance ratio [Ca/Fe] for the star LMC-119?",
+    "label": "Easy",
+    "explanation": "The value for [Ca/Fe] for the star LMC-119 is listed as 0.47 in the provided table of abundance ratios for metal-poor stars.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.06335::T2"
+    ]
+  },
+  {
+    "query_id": 2397,
+    "query": "What was the instruction coverage for the jfreechart project using the Testearly tool in the Original setting?",
+    "label": "Medium",
+    "explanation": "The table provides the 'Instruction' coverage for the 'jfreechart' project under the 'Original' setting, which is 388.50.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.04557::T2"
+    ]
+  },
+  {
+    "query_id": 2398,
+    "query": "In the study examining pretraining data recipes like Dolma and FineWeb, which scaling law variant showed the lowest absolute error when predicting 1B target accuracy, and what are the definitions of the proxy metrics used to improve those predictions?",
+    "label": "Hard",
+    "explanation": "The query requires identifying the data recipes from Table 1, finding the scaling law variant with the minimum absolute error from Table 4 (Table 3 in the provided content), and listing the proxy metric definitions from Table 3 (Table 2 in the provided content).",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.11393::T1",
+      "2504.11393::T3",
+      "2504.11393::T4"
+    ]
+  },
+  {
+    "query_id": 2399,
+    "query": "Compare the Joint True Positive Rate (JTPR) for inner and outer nested objects across the VACVPlaque and HeLaCytoNuc datasets using the HSD-WBR architecture, specifically evaluating how the performance changes when the lambda 1 hyperparameter is adjusted from 0.1 to 0.4 and how the HSD-WBR overall results on VACVPlaque relate to its parameter count.",
+    "label": "Hard",
+    "explanation": "Answering this requires Table 1 (VACVPlaque JTPR for lambda 1), Table 3 (HeLaCytoNuc JTPR for lambda 1), Table 2 (providing the broader context of HeLaCytoNuc performance across different lambdas to ensure HSD-WBR consistency), and Table 4 (overall VACVPlaque performance and parameter counts for HSD-WBR).",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.12078::T2",
+      "2504.12078::T21",
+      "2504.12078::T22",
+      "2504.12078::T30"
+    ]
+  },
+  {
+    "query_id": 2400,
+    "query": "Which college majors are listed across clusters 1, 2, and 3 for fields of study?",
+    "label": "Hard",
+    "explanation": "Answering this requires aggregating the lists of majors from Table 28 (Cluster 1), Table 30 (Cluster 2), and Table 31 (Cluster 3).",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.20846::T28",
+      "2504.20846::T30",
+      "2504.20846::T31"
+    ]
+  },
+  {
+    "query_id": 2401,
+    "query": "For the datasets used to evaluate intrusion detection systems, compare the total number of features in the CSE-CIC-IDS2018 dataset with the processing time per sample for the Dynamite defense on the UNSW-NB15 and WUSTL-IIoT datasets, and identify which specific network features like total packets or duration are targeted for perturbation in adversarial attack generation.",
+    "label": "Hard",
+    "explanation": "This query requires Table 4 for the total features of CSE-CIC-IDS2018, Table 3 for the Dynamite processing times on UNSW-NB15 and WUSTL-IIoT, and Table 1 for the specific features (Duration, TotPkts, etc.) targeted for perturbation.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.08480::T1",
+      "2504.08480::T2",
+      "2504.13301::T1",
+      "2504.13301::T3"
+    ]
+  },
+  {
+    "query_id": 2402,
+    "query": "Which different model architectures are compared for performing sound event localization and detection in real-world environments?",
+    "label": "Hard",
+    "explanation": "To answer this, the user must identify the model names listed across all four provided table fragments: the 2023 baseline (CRNN), the CST-transformer, and Multi-ACCDOA.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.12870::T1::f",
+      "2504.12870::T1::g",
+      "2504.12870::T1::l",
+      "2504.12870::T1::q"
+    ]
+  },
+  {
+    "query_id": 2403,
+    "query": "What is the bias of the Cox ROC model for the time-specific incident/dynamic AUC at 1 year under Scenario C?",
+    "label": "Easy",
+    "explanation": "The table provides the Bias, SE, and RMSE for different scenarios. For Scenario C and the Cox ROC model at 1 year (AUC I/D(1)), the Bias is listed as -0.21.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.19726::T7"
+    ]
+  },
+  {
+    "query_id": 2404,
+    "query": "What is the association between log(Income) and the invoice ratio for the 'Baby and Hobbyists' lifestyle cluster?",
+    "label": "Medium",
+    "explanation": "The table provides the regression coefficient for log(Income) under the 'Baby and Hobbyists' column (column 3), which is 0.037***.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.15618::T1"
+    ]
+  },
+  {
+    "query_id": 2405,
+    "query": "Among the NEVPT2(9,9), NEVPT2(1,5), SA-CASSCF(9,10), and NEVPT2(17,12) calculations for molecular qubits, which specific method resulted in a different number of doublets compared to the other three?",
+    "label": "Hard",
+    "explanation": "The user must check Table 1 (NEVPT2(9,9) has 9 doublets), Table 2 (NEVPT2(1,5) has 5 doublets), Table 3 (SA-CASSCF(9,10) has 5 doublets), and Table 4 (NEVPT2(17,12) has 5 doublets) to identify that NEVPT2(9,9) is the outlier.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.20778::T5::d",
+      "2504.20778::T5::j",
+      "2504.20778::T5::o",
+      "2504.20778::T5::t"
+    ]
+  },
+  {
+    "query_id": 2406,
+    "query": "Compare the number of 3D models used in the ZeroGrasp-11B dataset with the number of objects evaluated for robust dexterous grasping in simulation, and identify the grasp pose success rate for novel objects using the ZeroGrasp method.",
+    "label": "Hard",
+    "explanation": "The number of 3D models in ZeroGrasp-11B (12K) is found in Table 2, the total number of objects evaluated for robust dexterous grasping (247,786) is in Table 1, and the grasp pose success rate for novel objects using the ZeroGrasp method (26.46) is in Table 3.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.05287::T2",
+      "2504.10857::T1",
+      "2504.10857::T3::b"
+    ]
+  },
+  {
+    "query_id": 2407,
+    "query": "For the Barles' and Soner's model with 1500 stationary points, what is the PDE residual of the WAM-PINN method?",
+    "label": "Easy",
+    "explanation": "The table contains PDE residuals for various methods (including WAM-PINN) across different numbers of stationary points; the value for WAM-PINN at 1500 points is 3.38E-05.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.03244::T4::a"
+    ]
+  },
+  {
+    "query_id": 2408,
+    "query": "What are the PSNR and SSIM values for the Urban100 dataset when the top-k value is 32 in the single image super-resolution ablation study?",
+    "label": "Easy",
+    "explanation": "The table provides PSNR and SSIM metrics for the Urban100 dataset across different top-k values, specifically listing 26.557 / 0.7997 for top-k 32.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.06634::T2"
+    ]
+  },
+  {
+    "query_id": 2409,
+    "query": "When comparing the Reflection-DPO method to the ReAct baseline and an ablated version lacking the reflection mechanism, which of these three options achieves the highest preference satisfaction rate for unseen personas, and how many questions does that specific method ask on average for the same persona group?",
+    "label": "Medium",
+    "explanation": "To answer this, the user must identify the 'Unseen Persona' satisfaction rates for Reflection-DPO and ReAct from Table 1, and the 'Unseen Persona' satisfaction rate for the 'Ablation: no Reflection' version from Table 2. After determining Reflection-DPO is the highest, they must retrieve its corresponding 'Num. Questions Asked' for unseen personas from either table.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.04040::T1",
+      "2504.04040::T2"
+    ]
+  },
+  {
+    "query_id": 2410,
+    "query": "For 3B models trained for 220B total tokens, what is the TiC-StackOverflow Forward value for the Replay (Exp) variant?",
+    "label": "Medium",
+    "explanation": "The table provides results for 3B models trained for 220B tokens, and the intersection of the 'Replay (Exp)' row and the 'TiC-StackOverflow Forward' column gives the value 0.088.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.02107::T9::c"
+    ]
+  },
+  {
+    "query_id": 2411,
+    "query": "How does the mean log likelihood of the ENHP model compare to the ENHP-C model on the Retweet dataset?",
+    "label": "Easy",
+    "explanation": "The table provides the mean LL ± standard deviation for both ENHP (-3.67 ± 0.02) and ENHP-C (-3.80 ± 0.02) specifically for the Retweet dataset.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.21795::T1"
+    ]
+  },
+  {
+    "query_id": 2412,
+    "query": "How does the code repair success rate of DTVM compare to the SolGPT tool?",
+    "label": "Easy",
+    "explanation": "The table provides the 'Repair Success Rate' for both 'Our Tool' (DTVM) at 86% and 'SolGPT' at 43%.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.16552::T2"
+    ]
+  },
+  {
+    "query_id": 2413,
+    "query": "What are the different types of smart contract opcodes used for controlling program execution paths, querying address-related information, and managing data in memory or storage?",
+    "label": "Hard",
+    "explanation": "Answering this requires identifying the jump instructions from Table 1, the address and balance instructions from Table 2, and the storage-family instructions from Table 3.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.12720::T10",
+      "2504.12720::T6",
+      "2504.12720::T8"
+    ]
+  },
+  {
+    "query_id": 2414,
+    "query": "What is the value of $B(m_{i},m_{i+1})$ for the interval $[10^{25},10^{30}]$?",
+    "label": "Medium",
+    "explanation": "The table explicitly lists the value $0.0423$ for the interval $[10^{25},10^{30}]$ in the $B(m_{i},m_{i+1})$ column.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.15658::T1"
+    ]
+  },
+  {
+    "query_id": 2415,
+    "query": "What is the Silhouette index for Cluster 4 under case I when using the DBSCAN algorithm?",
+    "label": "Easy",
+    "explanation": "The value is located at the intersection of the 'case I' row and the '4' column in Table 1, which shows Silhouette indices for DBSCAN clusters.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.15297::T1"
+    ]
+  },
+  {
+    "query_id": 2416,
+    "query": "What is the average mAP of the PseudoFormer model when all components, including regression model, Ricker Fusion, attention loss, uncertainty mask, and label refinement, are integrated?",
+    "label": "Easy",
+    "explanation": "The table shows in Exp 6 that when all five components are marked with a checkmark, the AVG (0.1:0.7) performance is 51.9.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.14860::T3"
+    ]
+  },
+  {
+    "query_id": 2417,
+    "query": "How do the ISM and CLIP scores for the 'Malicious' method vary for the Kolors-PlusID model across text-to-image tasks using normal facial images and image inpainting tasks using both comic and normal facial images?",
+    "label": "Hard",
+    "explanation": "Answering this requires the 'Malicious' row for Kolors-PlusID from Table 1 (inpainting with comic faces), Table 2 (text-to-image with normal faces), and Table 3 (inpainting with normal faces).",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.05838::T17",
+      "2504.05838::T18",
+      "2504.05838::T3"
+    ]
+  },
+  {
+    "query_id": 2418,
+    "query": "What is the value of the orbital period P in days for the planetary companion described in the 1P+GP nested sampling modeling results?",
+    "label": "Medium",
+    "explanation": "The table lists the parameter 'P' with a unit of '(d)' (days) and a value of 2827 with associated uncertainties.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.09087::T4"
+    ]
+  },
+  {
+    "query_id": 2419,
+    "query": "In the statistics for group 2 jobs, how does the mean release time compare to the mean processing time?",
+    "label": "Easy",
+    "explanation": "The table provides the 'Mean' for both 'Release Time' (8437) and 'Processing Time' (81050), allowing for a comparison between the two values.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.03994::T2"
+    ]
+  },
+  {
+    "query_id": 2420,
+    "query": "Which human mesh recovery model achieves the lowest foot skating value on the EMDB-2 dataset?",
+    "label": "Medium",
+    "explanation": "The table lists 'Foot Skating' as a metric for several models on the EMDB-2 dataset, showing that both GVHMR and PromptHMR-Vid share the lowest value of 3.5.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.06397::T4"
+    ]
+  },
+  {
+    "query_id": 2421,
+    "query": "How does the R@10 metric compare between the COHESION and COHESION-ui variants on the Baby dataset?",
+    "label": "Medium",
+    "explanation": "The table lists the R@10 values for both the COHESION (0.0680) and COHESION-ui (0.0547) variants specifically for the Baby dataset.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.04452::T4"
+    ]
+  },
+  {
+    "query_id": 2422,
+    "query": "What is the LCAG loss value for the GNN model when trained only with the LCAG loss task?",
+    "label": "Easy",
+    "explanation": "The table contains a column for the model ('GNN'), a column for the tasks ('L_LCA_CE'), and a column for the LCAG loss value (L_LCA_CE = 0.56).",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.21844::T1"
+    ]
+  },
+  {
+    "query_id": 2423,
+    "query": "What values were tested for the Number of Features in the hyperparameter sweep for Static SAE Clamping?",
+    "label": "Easy",
+    "explanation": "The table explicitly lists 'Number of Features' as a hyperparameter with the tested values 5, 10, 20, 30, and 50.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08192::T7"
+    ]
+  },
+  {
+    "query_id": 2424,
+    "query": "In the MultiArith pseudo-program knowledge graph, what is the C++ sub_case1 description regarding Tom helping at a restaurant?",
+    "label": "Medium",
+    "explanation": "The table contains a C++ pseudo-program for the MultiArith dataset where 'sub_case1' explicitly describes Tom helping at a restaurant and how many plates he can carry.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.13534::T38"
+    ]
+  },
+  {
+    "query_id": 2425,
+    "query": "What is the Mean Squared Error (MSE) for the pupil segmentation accuracy evaluation in the dual-modality computational ophthalmic imaging study?",
+    "label": "Medium",
+    "explanation": "The table explicitly lists the Mean Squared Error (MSE) as 9.1 under the evaluation results of pupil segmentation accuracy.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.18549::T2"
+    ]
+  },
+  {
+    "query_id": 2426,
+    "query": "What are the different traditional approaches used for sharing intelligence to support national security?",
+    "label": "Hard",
+    "explanation": "Answering this requires combining the information from all three tables, which list public source analysis, human source collection, and visual image analysis as traditional intelligence sharing methods.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.02537::T1::b",
+      "2504.02537::T1::h",
+      "2504.02537::T1::o"
+    ]
+  },
+  {
+    "query_id": 2427,
+    "query": "For the FCPS Chainlink and FCPS Tetra datasets, how does the median success of standard k-means compare to the results obtained through radius-based post-processing on the full dataset versus the results after partitioning the feature space and reassembling the clusters?",
+    "label": "Hard",
+    "explanation": "To answer this, the user must find the baseline k-means success for both datasets (Table 1), the success after radius-based post-processing on the full dataset (Table 2), and the success after partitioning/reassembling (Table 4). Table 3 provides a combined summary of these three specific metrics across all datasets.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.20293::T1",
+      "2504.20293::T2",
+      "2504.20293::T3",
+      "2504.20293::T4"
+    ]
+  },
+  {
+    "query_id": 2428,
+    "query": "For MDS Euclidean self-dual codes of length n where q is odd, what is the specific value of n listed in Class 2 of the known results?",
+    "label": "Easy",
+    "explanation": "Table 3 lists Class 2 for MDS Euclidean self-dual codes where q is odd and the length n = q + 1.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.01717::T3::a"
+    ]
+  },
+  {
+    "query_id": 2429,
+    "query": "Between the study on sensory attributes and the research on QB-optimal designs, how does the AIC of the most comprehensive beta regression model compare to the total number of unique factor-level combinations represented across both of the 12-run designs provided for the four two-level factors?",
+    "label": "Hard",
+    "explanation": "To answer this, the user must find the AIC for Model 3 from Table 1 (-3588.8) and then identify and count the unique combinations of (x1, x2, x3, x4) present across both the Hadamard submatrix design in Table 2 and the algorithm-generated design in Table 3.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.05072::T3::a",
+      "2504.05072::T3::b",
+      "2504.05996::T2"
+    ]
+  },
+  {
+    "query_id": 2430,
+    "query": "Which observatory detected a photon from GRB 221009A with an energy of approximately 12.2 TeV?",
+    "label": "Easy",
+    "explanation": "The table lists two photons for GRB 221009A; the one with the higher energy (12200 GeV or 12.2 TeV) was detected by the LHAASO observatory.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.14295::T1"
+    ]
+  },
+  {
+    "query_id": 2431,
+    "query": "Which transition metal oxidation states are utilized in phosphate-based polyanionic cathode materials that use (PO4)3 and (PO4)2F3 groups?",
+    "label": "Medium",
+    "explanation": "The table lists several transition metal oxidation state pairs (V3+/V4+, Mn2+/Mn3+, and Mn3+/Mn4+) associated with phosphate-based polyanionic cathode materials.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.19299::T3::t"
+    ]
+  },
+  {
+    "query_id": 2432,
+    "query": "What are the sensitivity coefficients to variations in alpha (K_alpha) and mu (K_mu) for the CaF and N2+ clocks?",
+    "label": "Easy",
+    "explanation": "The table lists the K_alpha and K_mu values for various clock species, including CaF and N2+.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.07179::T3"
+    ]
+  },
+  {
+    "query_id": 2433,
+    "query": "What are some examples of few-shot demonstrations used for StrategyQA in the orchestrated streaming experiences study?",
+    "label": "Medium",
+    "explanation": "Table 15 explicitly lists several question-and-answer pairs used as few-shot demonstrations for the StrategyQA dataset.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.00473::T15"
+    ]
+  },
+  {
+    "query_id": 2434,
+    "query": "What is the Hit@10 score for the 'has_part' relation using the RAA-KGC method on the WN18RR dataset?",
+    "label": "Medium",
+    "explanation": "The table provides Hit@10 scores for various relations on the WN18RR dataset, and the value for 'has_part' under the 'RAA-KGC' column is 65.99.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.06129::T12"
+    ]
+  },
+  {
+    "query_id": 2435,
+    "query": "Which repository domain has the highest percentage of unique committers who have correctly signed commits?",
+    "label": "Easy",
+    "explanation": "Table 3 lists repository domains along with the percentage of unique committers with correctly signed commits, showing that the 'Security' domain has the highest proportion at 18.48%.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.19215::T3::a"
+    ]
+  },
+  {
+    "query_id": 2436,
+    "query": "In the GeoSense framework, what Level 3 categories fall under the 'Calculation of Plane Figures' Level 2 category?",
+    "label": "Medium",
+    "explanation": "The table lists 'Interior and Exterior Angles of Polygon', 'Calculation of Areas', and 'Calculation of Perimeters' as Level 3 categories under the Level 2 heading 'Calculation of Plane Figures'.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.12597::T5"
+    ]
+  },
+  {
+    "query_id": 2437,
+    "query": "What is the learning rate used for model training in the MLP hyperparameters for G1 and D1?",
+    "label": "Medium",
+    "explanation": "The table explicitly lists the learning rate for all model configurations, including G1 and D1, as 0.0005.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.16356::T7"
+    ]
+  },
+  {
+    "query_id": 2438,
+    "query": "What is the minimum acceptable frame rate for the Quantum Intuition XR system when simulating rapid gate use and entanglement?",
+    "label": "Hard",
+    "explanation": "The table row 'Test performance under load' specifies an expected output of maintaining a frame rate >= 80 FPS.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08984::T1"
+    ]
+  },
+  {
+    "query_id": 2439,
+    "query": "Which computing platforms are used by monocular passive depth imaging techniques that produce dense depth maps, and what is the computational cost in kFLOPs per pixel for those on unspecified platforms?",
+    "label": "Hard",
+    "explanation": "The answer requires synthesizing the 'Dense Depth Map' status from Table 1, the processor details from Tables 2 and 3, and the FLOPs data from Table 4, all of which are fragments of the same system-level comparison.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.11202::T1::d",
+      "2504.11202::T1::g",
+      "2504.11202::T1::i",
+      "2504.11202::T1::k"
+    ]
+  },
+  {
+    "query_id": 2440,
+    "query": "For the proposed multi-task edge sensing approach, what would be the estimated mIoU for human detection and saliency when three tasks are running, if the system experiences the performance degradation associated with a 10dB signal-to-noise ratio?",
+    "label": "Medium",
+    "explanation": "The query requires the baseline mIoU values for 'Hum' and 'Sal' from Table 1 (under the 3 Tasks column) and the corresponding 'Degradation Hum' and 'Degradation Sal' percentages from Table 2 (under the 10dB SNR column) to calculate the final result.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.11843::T4",
+      "2504.11843::T6"
+    ]
+  },
+  {
+    "query_id": 2441,
+    "query": "How does the accuracy of the SCMPPI model compare to the HNSPPI model on the multi-species dataset containing C. eleg, D. mela, and E. coli?",
+    "label": "Medium",
+    "explanation": "The table provides the Acc(%) for both 'Our Model' (SCMPPI) and 'HNSPPI' on the specified multi-species dataset.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.02698::T8"
+    ]
+  },
+  {
+    "query_id": 2442,
+    "query": "Which coordinate frames are considered core and present in every Holistic Fusion estimation problem?",
+    "label": "Medium",
+    "explanation": "The 'Core' section of Table II lists the frames that are present in every HF estimation problem, specifically the Main fixed world frame (W) and the Drifting odometry frame (O), as well as the Central IMU frame (I) and Robot base frame (B).",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.06479::T2"
+    ]
+  },
+  {
+    "query_id": 2443,
+    "query": "How many attack samples and synthetic samples were used for the dataset involving 35 subjects with 12 devices?",
+    "label": "Hard",
+    "explanation": "The table explicitly lists 'attack sample: 7548' and 'synthetic: 10000' for the specified subjects and devices.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.01213::T1::"
+    ]
+  },
+  {
+    "query_id": 2444,
+    "query": "What was the translation error percentage for the DRO-G method on the Boeras dataset sequence 2021-06-29-18-53?",
+    "label": "Medium",
+    "explanation": "The table provides 'Trans. err. [%]' for specific Sequence IDs; for sequence 2021-06-29-18-53, the value is 0.36.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.20339::T6"
+    ]
+  },
+  {
+    "query_id": 2445,
+    "query": "What is the placement method ratio for 'void' used in the RAFFLE interface structure prediction for the Si|Ge example?",
+    "label": "Easy",
+    "explanation": "The table lists RAFFLE parameters for various examples; for the Si|Ge example, the 'void' placement method ratio is 0.25.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.02528::T1"
+    ]
+  },
+  {
+    "query_id": 2446,
+    "query": "What is the PASS score for the ProofNet test set using the hierarchical attention method with best-first search (K=64)?",
+    "label": "Medium",
+    "explanation": "The table lists the 'PASS (ours)' row, and the paper title indicates that the 'ours' method refers to Hierarchical Attention. The value for ProofNet Test is 15.25.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.19188::T12"
+    ]
+  },
+  {
+    "query_id": 2447,
+    "query": "How does the average accuracy of GRPO with ROAM compare to classical GRPO for defect detection across the DS-MVTec, MVTec-LOCO, VisA, and GoodsAD datasets?",
+    "label": "Easy",
+    "explanation": "The 'Average' column in Table 5 shows that GRPO with ROAM achieves 60.62 accuracy compared to 52.64 for Classical GRPO.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11914::T5"
+    ]
+  },
+  {
+    "query_id": 2448,
+    "query": "For the indoor scene understanding datasets that use automatic annotation methods, what is the total number of annotated objects and how many of those objects are specifically used for testing?",
+    "label": "Hard",
+    "explanation": "To answer this, one must first identify which datasets use automatic methods from Table 2 (SCANnotate and SCANnotate++), find their total annotated objects in Table 2 (18k and 5k), and then find their specific testing object counts in Table 3 (4193 and 947).",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.13580::T1::a",
+      "2504.13580::T1::b",
+      "2504.13580::T2"
+    ]
+  },
+  {
+    "query_id": 2449,
+    "query": "Comparing anomaly detection approaches for industrial control systems, what is the average time per sensor for testing the Giant-step classifier, which components are listed in its process stages, and how does the iADCPS method's F1 score on the WADI dataset in the Remove scenario compare to the IF method?",
+    "label": "Hard",
+    "explanation": "The query requires Table 1 for the Giant-step test time per sensor, Table 2 for the specific process stage components (P-401 etc.), and Table 3 for the F1 score comparison between iADCPS and IF on the WADI dataset.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.04374::T1",
+      "2504.20906::T1::f",
+      "2504.20906::T7"
+    ]
+  },
+  {
+    "query_id": 2450,
+    "query": "Which existing state-of-the-art remote sensing change detection methods are improved by incorporating the domain-agnostic learning approach when evaluated on the SVCD and SYSU-CD datasets?",
+    "label": "Hard",
+    "explanation": "The answer requires identifying the base methods (DSAMNet, FC-Siam-conc, FC-EF, and FCN-PP) across all four provided tables that were combined with the authors' proposed method for the specified datasets.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.00543::T8::b",
+      "2504.00543::T8::k",
+      "2504.00543::T8::t",
+      "2504.00543::T8::"
+    ]
+  },
+  {
+    "query_id": 2451,
+    "query": "How does the average performance of the Rein method compare to the proposed method when trained on GTA5 and evaluated on the ACDC dataset using a DINOv2-L backbone?",
+    "label": "Medium",
+    "explanation": "The table provides the average ('Avg.') values for both the 'Rein' method (61.99) and the 'Ours' method (63.52) under the specified training and evaluation conditions.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.06781::T4"
+    ]
+  },
+  {
+    "query_id": 2452,
+    "query": "What is the coefficient and p-value for the Anomaly Score in the logistic regression for inpatient mortality on the MIMIC test set?",
+    "label": "Easy",
+    "explanation": "The table provides the 'coef' (6.9725) and 'P$>|$z$|$' (0.000) for the 'Anomaly Score' row within the logistic regression results for inpatient mortality.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.10422::T6::b"
+    ]
+  },
+  {
+    "query_id": 2453,
+    "query": "Which version and size of the Dolly model is evaluated for LLM similarity on the Wikipedia dataset?",
+    "label": "Easy",
+    "explanation": "The table specifically lists '(v2,7b)' under the 'Dolly' column for the Wikipedia dataset similarity results.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.04216::T8::i"
+    ]
+  },
+  {
+    "query_id": 2454,
+    "query": "How does the numeracy score of SD v3 compare to FLUX.1-Dev on the T2I-Compbench benchmark?",
+    "label": "Medium",
+    "explanation": "The table provides numeracy scores for both SD v3 (0.6088) and FLUX.1-Dev (0.5872) within the T2I-Compbench evaluation results.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.00010::T1"
+    ]
+  },
+  {
+    "query_id": 2455,
+    "query": "In the Belebele benchmark, how many samples are considered 'aligned' (MEXA=1) for the Afrikaans language?",
+    "label": "Easy",
+    "explanation": "The table provides the number of aligned samples (N_a) for various languages in the Belebele benchmark; for Afrikaans, this value is 286.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.09378::T14"
+    ]
+  },
+  {
+    "query_id": 2456,
+    "query": "How do mean pooling and last-token pooling compare in terms of OOD average performance for knowledge boundary probing?",
+    "label": "Easy",
+    "explanation": "The table provides 'OOD avg.' values for 'mean pooling' (79.52) and 'last-token pooling' (83.95), allowing for a direct comparison.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.13816::T6"
+    ]
+  },
+  {
+    "query_id": 2457,
+    "query": "How does the training time compare between the non-pipelined and inlined configurations for the delayed feedback reservoir system on FPGA?",
+    "label": "Medium",
+    "explanation": "The table provides the training time for both 'non-pipelined' (1.36 s) and 'inlined' (0.29 s) configurations.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11970::T11"
+    ]
+  },
+  {
+    "query_id": 2458,
+    "query": "Compare the performance and training configuration of the assistant trained via assistance games versus the one trained using supervised fine-tuning (SFT), specifically regarding their goal completion percentages, the learning rates used during their training, and the types of human models used to evaluate them.",
+    "label": "Hard",
+    "explanation": "To answer this, one must use Table 1 for performance (goal completion %), Table 2 for the SFT learning rate, Table 3 for the assistance game learning rate, and Table 1/Table 4 to identify that the piKL-combined human model was used for evaluation.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.07091::T10",
+      "2504.07091::T14",
+      "2504.07091::T2",
+      "2504.07091::T3"
+    ]
+  },
+  {
+    "query_id": 2459,
+    "query": "Comparing the time series classification task on the Mastitis Dairy Cow dataset with the general classification tasks in the UEA dataset, how did variable pruning affect Random Forest's recall in the former, and what frequency transform methods are specifically noted for their ability to handle non-stationary signals?",
+    "label": "Hard",
+    "explanation": "To answer this, the user must find the Random Forest recall change for the Mastitis Dairy Cow dataset (Table 1), identify that the UEA dataset is also used for classification tasks (Table 3), and locate the frequency transforms suited for non-stationary signals, such as FrFT or DWT (Table 2).",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.07099::T1",
+      "2504.07099::T2",
+      "2504.18329::T2"
+    ]
+  },
+  {
+    "query_id": 2460,
+    "query": "In Study 1 of the Bayesian shrinkage VAR model comparison, what was the mean parameter RMSE (PRMSE) for the Horseshoe method when evaluating nonzero coefficients?",
+    "label": "Medium",
+    "explanation": "The table provides the Mean PRMSE for the Horseshoe method under Study 1 as 0.085.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.05489::T3"
+    ]
+  },
+  {
+    "query_id": 2461,
+    "query": "Comparing different methods for style transfer and image generation, which approach achieved the highest user study score for style fidelity, how does this compare to the CLIP similarity scores for InST's style images, what are the CLIP scores for the OilPaint topic using AC-LoRA, and what are the entanglement phenomena associated with latent features in reference carriers?",
+    "label": "Hard",
+    "explanation": "This query requires information from Table 4 (ICAS style fidelity score), Table 2 (InST CLIP similarity), Table 1 (AC-LoRA CLIP score for OilPaint), and Table 3 (entanglement phenomenon for latent features).",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.02231::T1",
+      "2504.02875::T1",
+      "2504.06895::T1",
+      "2504.13224::T1"
+    ]
+  },
+  {
+    "query_id": 2462,
+    "query": "How does the performance of the CrossIC-PT model compare to the Mix-PT baseline for the Portuguese language when using Wikipedia-based data (W)?",
+    "label": "Easy",
+    "explanation": "The table shows that for the 'W' data row, the CrossIC-PT model scored 49.09 and the Mix-PT model scored 46.45 for the 'pt' (Portuguese) column.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.20484::T3"
+    ]
+  },
+  {
+    "query_id": 2463,
+    "query": "For the BiVO4 material study, what are the PBE-relaxed crystal coordinates for the vanadium atoms, the specific grid sizes used for BSE convergence, and the parameters used for GW calculation convergence?",
+    "label": "Hard",
+    "explanation": "Answering this query requires the relaxed positions of vanadium from Table S2, the various grid sizes for the BSE calculations from Table S4, and the convergence parameters (Epsilon and Cutoff) for the GW calculations from Table S3.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.00110::T2",
+      "2504.00110::T3::b",
+      "2504.00110::T4"
+    ]
+  },
+  {
+    "query_id": 2464,
+    "query": "How does initializing the bitwise & FM hybrid modeling variant from DPLM-2 compare to training it from scratch?",
+    "label": "Easy",
+    "explanation": "The referencing text specifically states that the 'bitwise & FM' variant initialized from bit-based DPLM-2 outperforms the model trained from scratch across both datasets.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11454::T18::b"
+    ]
+  },
+  {
+    "query_id": 2465,
+    "query": "What is the median 3D sphericity index for CuTSF powder?",
+    "label": "Easy",
+    "explanation": "The text explicitly states that CuTSF has a median sphericity index (Psi_3D,50) of 0.76, which is also listed in Table 2.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08064::T2::e"
+    ]
+  },
+  {
+    "query_id": 2466,
+    "query": "What is the F1-score of the MemeBLIP-2 model on the PrideMM hate detection task?",
+    "label": "Easy",
+    "explanation": "The table lists the F1-score for MemeBLIP-2 as 79.0% under the classification performance for the PrideMM hate detection task.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.21226::T1"
+    ]
+  },
+  {
+    "query_id": 2467,
+    "query": "For the transfer learning study involving the C2O1 adsorbate, what are the LightGBM parameters used for pseudo-label generation, and how do the Wasserstein distances for the Wang2023 and dummy datasets change after the source is transformed?",
+    "label": "Hard",
+    "explanation": "The query requires Table 1 to identify the context of the C2O1 adsorbate, Table 2 to retrieve the specific LightGBM configuration (bagging, 100 iterations, 0.1 learning rate), and Table 3 to compare the raw vs. transformed Wasserstein distances for both the Wang2023 and dummy datasets.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.02848::T1",
+      "2504.02848::T2",
+      "2504.02848::T5"
+    ]
+  },
+  {
+    "query_id": 2468,
+    "query": "Which classical optimization method that guarantees optimality could be used to manage a portfolio containing securities like HDFC BANK LIMITED and INFOSYS LTD?",
+    "label": "Hard",
+    "explanation": "The user must identify the specific securities (HDFC BANK LIMITED and INFOSYS LTD) from the portfolio attribution report in Table 1 and then find the classical algorithm with an optimality guarantee (Gurobi) from the algorithm summary in Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.02073::T1",
+      "2504.08843::T1"
+    ]
+  },
+  {
+    "query_id": 2469,
+    "query": "How many categories are used in the propaganda detection span annotation task?",
+    "label": "Easy",
+    "explanation": "The table contains a row for the 'Propaganda' task and a column '# Cat.' which lists the value 18.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08697::T1"
+    ]
+  },
+  {
+    "query_id": 2470,
+    "query": "How does the average CPU time of the DDL method compare to the TS (Algorithm 7) and NF methods for the tensor decomposition of F?",
+    "label": "Easy",
+    "explanation": "The 'Time' row in Table 2 provides the average CPU times for TS (0.86), NF (0.846), and DDL (0.02), showing that DDL is significantly faster.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.00313::T2"
+    ]
+  },
+  {
+    "query_id": 2471,
+    "query": "What is the theoretical gravimetric capacity of the NASICON Mn2(PO4)3 (mp-26062) cathode for zinc-ion batteries?",
+    "label": "Easy",
+    "explanation": "The table contains a row for Mn2(PO4)3 (mp-26062) and a column for 'Gravimetric Capacity (mAh/g)', where the value is listed as 240.02.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11678::T1"
+    ]
+  },
+  {
+    "query_id": 2472,
+    "query": "What is the category representation for DT in the SCALAR part-of-speech tagger's test set performance metrics?",
+    "label": "Easy",
+    "explanation": "The table lists 'DT' and associates it with the category '(Determiner)'.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.17038::T4::i"
+    ]
+  },
+  {
+    "query_id": 2473,
+    "query": "What was the success rate of the MooseAgent framework for the Thermal-Mechanic coupling test case?",
+    "label": "Easy",
+    "explanation": "The table lists 'ThermalMechanic' under the 'Case' column and shows a corresponding 'Pass' (success rate) value of 0.4.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08621::T1"
+    ]
+  },
+  {
+    "query_id": 2474,
+    "query": "What is the accuracy and average inference length of the ShorterBetter 7B model on the MBPP coding task?",
+    "label": "Easy",
+    "explanation": "The table contains a row for the 'MBPP' task and a column for 'ShorterBetter' under '7B Models', providing both the accuracy (0.632) and the average inference length in tokens (1055).",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.21370::T2"
+    ]
+  },
+  {
+    "query_id": 2475,
+    "query": "What are the inputs and outputs of the QAOA algorithm used for solving the subgraph k-coloring problem?",
+    "label": "Easy",
+    "explanation": "The table lists the 'Input' as graph G, maximum number of colors Kmax, and layers p, and the 'Output' as the minimum number of colors k* and legal coloring C.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.21335::T1"
+    ]
+  },
+  {
+    "query_id": 2476,
+    "query": "For the error analysis of large reasoning models, what are the categories used to classify samples that have correct final answers, and which response format ID in the S1-Bench benchmark is explicitly labeled as 'Standard'?",
+    "label": "Medium",
+    "explanation": "The categories for samples with correct final answers are found in Table 2 (Categories 1 and 2), and the response format ID labeled as 'Standard' is found in Table 1 (ID 100).",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.10368::T18",
+      "2504.10368::T5"
+    ]
+  },
+  {
+    "query_id": 2477,
+    "query": "Comparing the performance on the In-MedVidQA and In-VehicleVQA datasets, how does using a less capable language model in the chatting module compare to using an imperative prompt instead of an asking prompt in that same module?",
+    "label": "Hard",
+    "explanation": "To answer this, the user must find the performance of GPT-4o-mini (the less capable model in the chatting module) from Table 1, and compare it to the performance of 'Chatting w/o Ask' (the imperative prompt version) from Table 3, across the two specific datasets (In-MedVidQA and In-VehicleVQA). Table 2 provides the baseline context for the overall model capability and dataset scope.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.15918::T6",
+      "2504.15918::T7",
+      "2504.15918::T8"
+    ]
+  },
+  {
+    "query_id": 2478,
+    "query": "How does the performance of the SAFE method compare to the UperNet+Ours method for Natural Area semantic segmentation on the AIR-POLSAR-SEG dataset?",
+    "label": "Medium",
+    "explanation": "The table compares various methods on the AIR-POLSAR-SEG dataset, listing specific performance values for SAFE and UperNet+Ours under the Natural Area category.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11999::T7::a"
+    ]
+  },
+  {
+    "query_id": 2479,
+    "query": "For the STARSS23 dataset, how does the training duration of 'Female Speech' compare to 'Male Speech', and which SELD model listed in the performance comparison achieved the lowest error rate?",
+    "label": "Hard",
+    "explanation": "This query requires Table 3 to find the training durations for 'Female Speech' and 'Male Speech' and Table 2 to identify the SELD model with the lowest error rate (represented by the first numerical value in the results columns).",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.12870::T7::a",
+      "2504.12870::T7::c",
+      "2504.12870::T8::a"
+    ]
+  },
+  {
+    "query_id": 2480,
+    "query": "What is the accuracy of the mDeBERTa base model for the Myanmar language when fine-tuned on the myXNLI dataset?",
+    "label": "Easy",
+    "explanation": "The table lists the accuracy for the mDeBERTa base model under the 'TRANSLATE-TRAIN' section using 'myXNLI' training data, showing a value of 79.46% for Myanmar.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.09645::T7"
+    ]
+  },
+  {
+    "query_id": 2481,
+    "query": "Comparing the nova events V1369 Cen and RS Oph, what was the minimum angular distance to V1369 Cen during its 24th day post-discovery observation, and what was the distance of RS Oph from Earth used in its gamma-ray data fitting?",
+    "label": "Medium",
+    "explanation": "The answer requires the minimum angular distance (Rmin = 0.0 degrees) for V1369 Cen during the observation 24 days after discovery from Table 1, and the distance from Earth to RS Oph (dN = 2.45 kpc) from Table 2.",
+    "num_source_tables": 2,
+    "source_table_uids": [
+      "2504.02043::T1",
+      "2504.20866::T2"
+    ]
+  },
+  {
+    "query_id": 2482,
+    "query": "What are the available tools defined in the GoalAct global planning prompt?",
+    "label": "Easy",
+    "explanation": "The table lists the four tools used in the GoalAct planning prompt: Searching, Coding, Writing, and Finish.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.16563::T4::b"
+    ]
+  },
+  {
+    "query_id": 2483,
+    "query": "Between October 2023 and March 2024, how did the number of unique users on the Civiverse platform change, and how does the user count for the prompt cluster emerging in March 2024 compare to the total number of non-repeaters overall?",
+    "label": "Hard",
+    "explanation": "To answer this, the user must find the growth in unique users from October 2023 to March 2024 (Table 3), identify the user count for the specific prompt cluster that emerged in March 2024 (Table 1), and find the total count of non-repeaters (Table 2). Table 4 provides additional context on user distributions but the specific numbers requested are derived from Tables 1, 2, and 3.",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.14125::T1",
+      "2504.14125::T5",
+      "2504.14125::T6",
+      "2504.14125::T9"
+    ]
+  },
+  {
+    "query_id": 2484,
+    "query": "What is the UBs(d3) value for the experimental result P5 in the PID-GM gain mapping study?",
+    "label": "Medium",
+    "explanation": "The table contains a row for experiment P5 which lists a corresponding UBs(d3) value of 0.46 deg.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.15081::T2"
+    ]
+  },
+  {
+    "query_id": 2485,
+    "query": "What are the characteristic traits listed in the prompt template used for candidate evaluation in Experiment 2 regarding the primacy effect in LLMs?",
+    "label": "Medium",
+    "explanation": "The table contains a 'Characteristics' row that lists specific traits such as humorous, strong, important, and restrained.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.20444::T4::c"
+    ]
+  },
+  {
+    "query_id": 2486,
+    "query": "What is the GPU memory usage in gigabytes for the S-SGLM method when the K value is set to 100?",
+    "label": "Medium",
+    "explanation": "The table provides a column for 'GPU Mem (G)' corresponding to different 'K' values for S-SGLM; for K=100, the value is 20.8.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11779::T5"
+    ]
+  },
+  {
+    "query_id": 2487,
+    "query": "What is the final accuracy (Acc) of the FM-LoRA method on ImageNet-R for a task length of N=20?",
+    "label": "Easy",
+    "explanation": "The table lists 'Acc' for various methods on 'ImageNet-R (N=20)'; the row for 'FM-LoRA' provides the specific value of 77.88±0.21.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.08823::T1"
+    ]
+  },
+  {
+    "query_id": 2488,
+    "query": "What is the correction factor for the parameter phi_f used to satisfy the condition |grad V_tot| > A in late-time acceleration scenarios?",
+    "label": "Medium",
+    "explanation": "The table provides the correction factor for the parameter phi_f as 10^18.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.18611::T1"
+    ]
+  },
+  {
+    "query_id": 2489,
+    "query": "What is the number of DiT layers used for the Ant-Dir configuration in the T2DA-D training process?",
+    "label": "Medium",
+    "explanation": "The table contains a row for 'DiT layers num' and a column for 'Ant-Dir', which intersects at the value 8.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.15046::T7"
+    ]
+  },
+  {
+    "query_id": 2490,
+    "query": "What are the specific prompt components used for the response generation baselines in the FiSMiness emotional support conversation paradigm, including the elements for the Emotional-CoT + SFT method and the structural tags for history, state, rules, and responses?",
+    "label": "Hard",
+    "explanation": "Answering this requires aggregating the prompt details across all four tables: Table 1 (History/State tags), Table 2 (Emotional-CoT + SFT specific instruction), and Tables 3 and 4 (Rule/Strategy and Response tags).",
+    "num_source_tables": 4,
+    "source_table_uids": [
+      "2504.11837::T12::g",
+      "2504.11837::T12::h",
+      "2504.11837::T12::j",
+      "2504.11837::T12::o"
+    ]
+  },
+  {
+    "query_id": 2491,
+    "query": "What was the accuracy of the EPFL method for client 6 on the OrganCMNIST dataset?",
+    "label": "Medium",
+    "explanation": "The table lists accuracies for various methods across different clients for OrganCMNIST; the cell for Client 6 under the EPFL column contains the value 87.18.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.10817::T4"
+    ]
+  },
+  {
+    "query_id": 2492,
+    "query": "What are the units used for the electron pressure pedestal height in the MAST-U database?",
+    "label": "Medium",
+    "explanation": "The table lists 'Electron pressure pedestal height' in the Name column and specifies the Units as 'kPa'.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.19861::T3"
+    ]
+  },
+  {
+    "query_id": 2493,
+    "query": "How many edges are in the BlogCatalog node classification dataset?",
+    "label": "Medium",
+    "explanation": "The table lists the number of edges for various datasets, and the BlogCatalog row explicitly shows the value 171,743.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.13426::T2"
+    ]
+  },
+  {
+    "query_id": 2494,
+    "query": "What is the wake-up range of the RFicient wake-up radio?",
+    "label": "Hard",
+    "explanation": "The table contains a row for 'Wake-up range' and a column for 'RFicient', which intersects at the value '100 m'.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.20545::T2"
+    ]
+  },
+  {
+    "query_id": 2495,
+    "query": "What are the correlation coefficients between chronological age and predicted heart age for males when using the LV, RV, LA, RA, MYO, and Aorta ROIs?",
+    "label": "Easy",
+    "explanation": "The table provides the correlation coefficient (rho_CA) between chronological age and predictions for each ROI, split by sex. For males and the ROI 'LV, RV, LA, RA, MYO, Aorta', the value is 0.593.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.15783::T5"
+    ]
+  },
+  {
+    "query_id": 2496,
+    "query": "What was the performance of Gemini 2.0 Flash Thinking Experimental on the CameraBench binary choice task specifically for exposure time?",
+    "label": "Easy",
+    "explanation": "The value is found in the row for 'Gemini 2.0 Flash Thinking Experimental' under the 'Binary Choice' -> 'Exposure Time' column, which is 0.687.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.10090::T1"
+    ]
+  },
+  {
+    "query_id": 2497,
+    "query": "Which single population-based learning strategies for Particle Swarm Optimization were introduced in 2009?",
+    "label": "Easy",
+    "explanation": "The table lists the 'Year' and 'Long name' for various PSO strategies; the user must identify all entries where the year is 2009 (OLPSO and ALPSO).",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.11812::T1"
+    ]
+  },
+  {
+    "query_id": 2498,
+    "query": "Comparing results across different experiments, how does the accuracy on the MATH-500 benchmark vary when using short-form answer templates, open-ended question formats, and the self-adaptive chain-of-thought algorithm's optimized approach versus its baseline?",
+    "label": "Hard",
+    "explanation": "To answer this, the user must find the MATH-500 accuracy for 'Short' answers in Table 1, compare it to the 'open-ended' and 'mcq + open-ended' question formats in Table 3, and then identify the 'Baseline' and 'Ours' accuracies for MATH 500 in Table 2.",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.03234::T1",
+      "2504.13941::T5",
+      "2504.13941::T6"
+    ]
+  },
+  {
+    "query_id": 2499,
+    "query": "Compare the total number of households reconstructed using 5 columns across all verified claims versus those reconstructed specifically using verified singleton claims, and provide an example of a reconstructed household from the study.",
+    "label": "Hard",
+    "explanation": "Answering this requires Table 2 for the total households with 5 columns (431), Table 3 for the singleton households with 5 columns (166), and Table 1 for an example of a reconstructed household (e.g., the household in Baldwin, AL).",
+    "num_source_tables": 3,
+    "source_table_uids": [
+      "2504.21199::T1",
+      "2504.21199::T2",
+      "2504.21199::T3"
+    ]
+  },
+  {
+    "query_id": 2500,
+    "query": "What is a limitation of using DD-GAN for anti-eavesdropping strategies?",
+    "label": "Medium",
+    "explanation": "The table lists a 'cross marker' (con) for DD-GAN stating that training relies on the quality and quantity of the genetic algorithm-generated datasets.",
+    "num_source_tables": 1,
+    "source_table_uids": [
+      "2504.09153::T6::f"
+    ]
+  }
+]

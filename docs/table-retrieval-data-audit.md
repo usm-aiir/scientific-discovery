@@ -1,5 +1,8 @@
 # Retrieval data utility usage audit
 
+The evaluation package now lives under `table_retrieval/experiments/stage1/`.
+The paths below describe the original audit.
+
 Audit completed before refactoring `table_retrieval/data.py`. Import locations below are the pre-refactor snapshot; line numbers may shift after imports are updated.
 
 Scope: repository-wide hidden/ignored source search, including Python scripts under `results/`, numbered experiments, tests, and generated `build/lib` files. Parsed all 173 Python files then present; local virtual environments, `.git`, and `node_modules` were excluded. Text searches also checked Python, Markdown, notebook, shell, and project configuration references. Direct imports, relative imports, aliases, and module-qualified accesses were inspected. None of the 15 requested symbols is genuinely unused.

@@ -1,7 +1,8 @@
 {
   "device": "auto",
   "batch_size": 2,
-  "data": "arxiv_data/SIGIRSciDis/tableGen/table_query_output",
+  "data": "table_retrieval/experiments/stage1/data",
+  "corpus": "arxiv_data/SIGIRSciDis/tableGen/table_query_output/Corpus.json",
   "validation_output": "results/bge_comparison",
   "test_output": "results/bge_test",
   "model": "BAAI/bge-m3",

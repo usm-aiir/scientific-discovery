@@ -2,17 +2,17 @@
 from datetime import datetime, timezone
 import os
 import shutil
-from ..data import load_json, load_corpus, check_id, digest, write_json
+from ...data import load_json, load_corpus, check_id, digest, write_json
 from .data import load_queries
 from .config import CODE_ROOT
 
 CODE_FILES = [
     'data.py', 'stage1/text.py', 'stage1/pipeline.py',
-    'stage1/fusion.py', 'evaluation/metrics.py',
+    'stage1/fusion.py', 'experiments/stage1/metrics.py',
     'stage1/retrievers/bm25.py', 'stage1/retrievers/bge.py',
     'stage1/retrievers/ranking.py',
     'stage1/artifacts.py', 'stage1/retrieval.py',
-    'evaluation/indexing.py', 'evaluation/workflow.py', 'evaluation/data.py',
+    'experiments/stage1/indexing.py', 'experiments/stage1/workflow.py', 'experiments/stage1/data.py',
 ]
 
 
@@ -81,7 +81,7 @@ def reject_partial(directory):
 
 def prepare_tables(args):
     from transformers import AutoConfig, AutoTokenizer
-    from ..stage1.retrievers.bge import CACHE
+    from ...stage1.retrievers.bge import CACHE
     if args.output.exists() and any(args.output.iterdir()):
         raise ValueError('prepare needs a new or empty output directory; inspect partial files or choose a new experiment')
     corpus = load_corpus(args.corpus)

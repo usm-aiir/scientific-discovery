@@ -1,0 +1,16 @@
+{
+  "model": "BAAI/bge-m3",
+  "revision": "5617a9f61b028005a4858fdac845db406aefb181",
+  "train_split": "train.json",
+  "training_representation": "table_aware",
+  "seed": 42,
+  "learning_rate": 0.00001,
+  "epochs": 3,
+  "batch_size": 1,
+  "gradient_accumulation": 4,
+  "negatives_per_positive": 4,
+  "temperature": 0.02,
+  "max_length": 512,
+  "encoding_batch_size": 32,
+  "selection_metric": "validation full-ranking binary nDCG"
+}

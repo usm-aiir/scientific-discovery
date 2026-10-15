@@ -2,7 +2,7 @@
 from collections import defaultdict
 from pathlib import Path
 
-from ..data import check_id, load_json, normalize_table_id
+from ...data import check_id, load_json, normalize_table_id
 
 
 def write_run(path, rankings, name):

@@ -1,8 +1,8 @@
 """Prepares frozen Stage 1 table inputs for offline index construction."""
 from tqdm.auto import tqdm
 
-from ..data import check_id
-from ..stage1.text import table_text
+from ...data import check_id
+from ...stage1.text import table_text
 
 
 def prepare_text_inputs(corpus, tokenizer, max_length):

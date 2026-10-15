@@ -36,4 +36,6 @@ across those tables as JSON. It only reads existing artifacts; it does not build
 indexes, train models, evaluate judgments, or run aggregation.
 
 Offline index construction and saved-run metrics live under
-`table_retrieval/evaluation/` and are not imported by the live pipeline.
+`table_retrieval/experiments/stage1/`. Stage 2 training, fixed splits, and the
+Structural BGE benchmark live under `table_retrieval/experiments/stage2_bge/`.
+See [experiments/README.md](experiments/README.md) for reproduction commands.

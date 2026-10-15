@@ -2,11 +2,11 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from ..data import digest, load_json
-from ..stage1.artifacts import resolve_device
+from ...data import digest, load_json
+from ...stage1.artifacts import resolve_device
 
 
-CODE_ROOT = Path(__file__).resolve().parents[1]
+CODE_ROOT = Path(__file__).resolve().parents[2]
 ROOT = CODE_ROOT.parent
 
 # Builds the evaluation paths and runtime arguments for validation or test.
@@ -28,7 +28,8 @@ def arguments(settings, test=False):
         source = root / 'indexes' / name / 'val' if test else None
         embeddings = root / 'embeddings' / name / 'corpus.npy'
     return SimpleNamespace(
-        corpus=data / 'Corpus.json', queries=data / ('Test.json' if test else 'Val.json'),
+        corpus=Path(settings.get('corpus', data / 'Corpus.json')),
+        queries=data / ('Test.json' if test else 'Val.json'),
         qrels=Path(settings.get(f'{split}_qrels', data / (
             'Test_table_qrels.INSTRUCTOR_ONLY.tsv' if test else 'Val_table_qrels.tsv'))),
         output=output, rankings=rankings, results=results, source=source,

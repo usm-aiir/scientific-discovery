@@ -4,7 +4,7 @@ import json
 import math
 from pathlib import Path
 import numpy as np
-from ..data import load_json, normalize_table_id, check_id, digest, write_json
+from ...data import load_json, normalize_table_id, check_id, digest, write_json
 from .data import load_queries, read_run, load_qrels
 
 def evaluate(run_path, qrels_path, query_ids, k=10, min_grade=1):

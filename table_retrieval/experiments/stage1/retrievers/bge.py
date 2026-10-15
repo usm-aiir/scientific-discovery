@@ -3,9 +3,9 @@ import numpy as np
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 
-from ...data import check_id, digest, load_json, write_json
+from ....data import check_id, digest, load_json, write_json
 from ..data import load_queries
-from ...stage1.retrievers.bge import encode, load_model, load_search_index, search_texts
+from ....stage1.retrievers.bge import encode, load_model, load_search_index, search_texts
 
 # Builds and saves BGE embeddings for all prepared tables in the evaluation set.
 def index_bge(args):

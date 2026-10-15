@@ -1,0 +1,46 @@
+{
+  "files": {
+    "train.json": {
+      "sha256": "5db0f9eb912f3573ade6a289c9e097f11463dcbc5d5e6d701e486457ac7a1017"
+    },
+    "runtime_train.json": {
+      "sha256": "8056e86452522e482487ea077a0ddf0cabe778f5021cf92c77e8c905863adb92"
+    },
+    "val.json": {
+      "sha256": "506bca3c768eda8c3a571ec7d86ee42df56b248e330dda5f1f4ed71fffa7eda1"
+    },
+    "test.json": {
+      "sha256": "2094b0bc43152fef889b9d5add557b952dc1636236530fd7e2816b149ecd3712"
+    },
+    "val_cell_qrels.tsv": {
+      "sha256": "0ca43d6130585c44b3533fedf9ccd97634f620c1d68510a6b9761b72f8944082"
+    },
+    "test_cell_qrels.tsv": {
+      "sha256": "0c8cbbc7cf638b5c01ece7226517a0191f35f1d5de4d0d8e3b4f4f84d4d5629d"
+    },
+    "val_candidates.json": {
+      "sha256": "e20e9f16edb1539ccc3a25191e2b2663c06dcc1c1f3cde7a4a6d5b5b7b7af21f",
+      "queries": 93
+    },
+    "test_candidates.json": {
+      "sha256": "b9d02b9d65c174fc2ffc99592b0ad6ce01c55b8a0d3610eaae787e3903112006",
+      "queries": 91
+    }
+  },
+  "training": {
+    "config.json": {
+      "positive_pairs": 2829,
+      "negative_assignments": {
+        "same_table": 9324,
+        "cross_table_fallback": 1992
+      }
+    },
+    "runtime.json": {
+      "positive_pairs": 2241,
+      "negative_assignments": {
+        "same_table": 7389,
+        "cross_table_fallback": 1575
+      }
+    }
+  }
+}

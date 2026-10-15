@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-from ..data import load_json, write_json
+from ...data import load_json, write_json
 from .data import write_run
 from .config import ROOT, arguments, check_settings
 from .indexing import prepare, prepare_test, check_frozen, reject_partial

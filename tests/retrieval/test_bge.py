@@ -105,11 +105,11 @@ class BGETests(unittest.TestCase):
             EvidencePipeline.from_artifacts('index', self.path, device='cpu')
 
     def test_training_encoder_uses_explicit_token_limit(self):
-        from table_retrieval.experiments.bge.train import encode
+        from table_retrieval.experiments.stage2_bge.train import encode
         text = 'paper ' * 800
         with patch.object(self.selector, 'tokenizer', wraps=self.selector.tokenizer) as tokenizer:
             with torch.inference_mode():
-                vectors = encode(self.selector.model, tokenizer, [text], 'cpu', torch, 64)
+                vectors = encode(self.selector.model, tokenizer, [text], 'cpu', 64)
         self.assertEqual(tokenizer.call_args.kwargs['max_length'], 64)
         inputs = self.selector.tokenizer([text], padding=True, truncation=True,
                                         max_length=64, return_tensors='pt')

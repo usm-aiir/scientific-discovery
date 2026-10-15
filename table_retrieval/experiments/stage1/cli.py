@@ -6,8 +6,8 @@ import sys
 # Reads evaluation options from the terminal and starts the evaluation workflow.
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, epilog='Examples:\n'
-        '  python -m table_retrieval.evaluation.cli --model bge --split val\n'
-        '  python -m table_retrieval.evaluation.cli --model fusion --split test',
+        '  python -m table_retrieval.experiments.stage1.cli --model bge --split val\n'
+        '  python -m table_retrieval.experiments.stage1.cli --model fusion --split test',
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--model', choices=['bm25', 'bge', 'fusion'], help='Retriever to evaluate')
     parser.add_argument('--split', choices=['val', 'test'], default='val')

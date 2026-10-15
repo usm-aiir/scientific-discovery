@@ -1,7 +1,7 @@
 """Combines saved BM25 and BGE runs for offline retrieval evaluation."""
-from ..data import check_id, load_json
+from ...data import check_id, load_json
 from .data import load_queries, read_run
-from ..stage1.fusion import fuse
+from ...stage1.fusion import fuse
 
 
 def combine(args):

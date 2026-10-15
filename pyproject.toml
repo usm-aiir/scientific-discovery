@@ -12,19 +12,27 @@ dependencies = [
   "beautifulsoup4>=4.12,<5",
   "numpy>=1.26,<2",
   "torch>=2.5,<3",
-  "transformers>=4.51,<5",
+  "transformers>=4.51,<6",
   "tqdm>=4.70,<5",
 ]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["table_retrieval*"]
+include = [
+  "table_retrieval",
+  "table_retrieval.stage1*",
+  "table_retrieval.stage2*",
+  "table_retrieval.experiments",
+  "table_retrieval.experiments.stage1*",
+  "table_retrieval.experiments.stage2_bge*",
+]
 exclude = [
-  "table_retrieval.experiments*",
-  "table_retrieval.evaluation.tests*",
+  "table_retrieval.experiments.stage1.tests*",
   "table_retrieval.tests*",
 ]
 namespaces = true
 
 [tool.setuptools.package-data]
-table_retrieval = ["config.json", "evaluation/settings.json"]
+table_retrieval = ["config.json"]
+"table_retrieval.experiments.stage1" = ["settings.json", "data/*.json", "data/*.tsv"]
+"table_retrieval.experiments.stage2_bge" = ["*.json", "requirements.txt", "data/*.json", "data/*.tsv", "reference/*.json"]
