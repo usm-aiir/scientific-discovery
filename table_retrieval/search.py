@@ -6,7 +6,7 @@ from pathlib import Path
 from .data import load_json
 from .pipeline import EvidencePipeline
 
-# Default runtime configuration file.
+# Local runtime settings; the example preserves the same defaults when none exists.
 DEFAULT_CONFIG = Path(__file__).with_name('config.json')
 # Required settings that must be present in config.json.
 _FIELDS = {
@@ -16,6 +16,8 @@ _FIELDS = {
 
 # Loads and validates runtime settings and resolves configured file paths.
 def load_config(path=DEFAULT_CONFIG):
+    if Path(path) == DEFAULT_CONFIG and not DEFAULT_CONFIG.exists():
+        path = DEFAULT_CONFIG.with_name('config.example.json')
     path = Path(path).expanduser().resolve()
     values = load_json(path)
     if not isinstance(values, dict) or set(values) != _FIELDS:

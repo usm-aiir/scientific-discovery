@@ -1,0 +1,9 @@
+{
+  "stage1_index": "../results/stage1/index",
+  "stage2_checkpoint": "../experiment2/checkpoint",
+  "stage2_max_length": 512,
+  "device": "cpu",
+  "table_top_k": 5,
+  "cell_top_k": 5,
+  "table_source_dir": null
+}

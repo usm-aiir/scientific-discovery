@@ -1,9 +1,0 @@
-{
-  "stage1_index": "../outputs/indexes/tokenizer_fix/val",
-  "stage2_checkpoint": "../results/stage2/bge_finetuned/best_model",
-  "stage2_max_length": 512,
-  "device": "auto",
-  "table_top_k": 5,
-  "cell_top_k": 5,
-  "table_source_dir": null
-}
