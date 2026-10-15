@@ -1,6 +1,5 @@
-"""Load corpus, queries, judgments, and saved retrieval files for both stages."""
+# Shared data structures and file utilities used across the retrieval system.
 
-from collections import defaultdict
 from dataclasses import dataclass, asdict
 from typing import Optional
 import math
@@ -9,35 +8,29 @@ import json
 import re
 from pathlib import Path
 
+# Historical inspection scripts use this path; live retrieval reads configuration.
 DATA = Path("arxiv_data/SIGIRSciDis/tableGen/table_query_output")
 
 
 def load_json(path):
-    """Read a UTF-8 JSON file."""
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
-
+# Validates IDs so they are safe to use in retrieval/evaluation files.
 def check_id(value):
-    """Return an identifier safe for whitespace-separated TREC files."""
     value = str(value)
     if not value or any(char.isspace() for char in value):
         raise ValueError(f"Invalid TREC identifier: {value!r}")
     return value
 
-
+# Normalizes table IDs for shared corpus collision checks and evaluation matching.
 def normalize_table_id(uid):
-    """Match corpus IDs to qrels IDs without changing either input file.
-
-    For example, 2504.16674::T1::b becomes 2504.16674_1_b.
-    Preserve subtable suffixes (including empty ones) and unrelated IDs.
-    """
     match = re.fullmatch(r"(\d{4}\.\d{4,5}(?:v\d+)?)::T(\d+)(?:::(.*))?", uid)
     if match is None:
         return uid
     paper, table, subtable = match.groups()
     return f"{paper}_{table}" + (f"_{subtable}" if subtable is not None else "")
 
-
+# Computes a SHA-256 hash used to verify that files have not changed.
 def digest(path):
     result = hashlib.sha256()
     with Path(path).open('rb') as stream:
@@ -58,26 +51,6 @@ def write_json(path, value):
     temporary.replace(path)
 
 
-def write_run(path, rankings, name):
-    path = Path(path)
-    temporary = path.with_suffix(path.suffix + '.tmp')
-    if path.exists():
-        raise ValueError(f'Existing rankings {path}; choose a new experiment/output path')
-    with temporary.open('x') as stream:
-        for qid, hits in rankings.items():
-            for rank, (uid, score) in enumerate(hits, 1):
-                stream.write(f'{qid} Q0 {uid} {rank} {score:.12g} {name}\n')
-    temporary.replace(path)
-
-
-def read_run(path):
-    result = defaultdict(list)
-    for line in Path(path).read_text().splitlines():
-        qid, _, uid, rank, score, _ = line.split()
-        result[qid].append((int(rank), uid, float(score)))
-    return {qid: [(uid, score) for _, uid, score in sorted(hits)] for qid, hits in result.items()}
-
-
 def load_corpus(path):
     corpus = load_json(path)
     if not isinstance(corpus, dict) or not corpus:
@@ -94,34 +67,10 @@ def load_corpus(path):
     return corpus
 
 
-def load_queries(path):
-    queries = load_json(path)
-    if not isinstance(queries, list) or any(not isinstance(q, dict) or
-            'query_id' not in q or 'query' not in q for q in queries):
-        raise ValueError('Queries must be a list of objects with query_id and query fields')
-    ids = [check_id(q['query_id']) for q in queries]
-    if not queries or len(ids) != len(set(ids)):
-        raise ValueError('Queries must be nonempty and have unique IDs')
-    if any(not isinstance(q['query'], str) or not q['query'].strip() for q in queries):
-        raise ValueError('Queries must contain nonempty text')
-    return queries
-
-
-def load_qrels(path, min_grade=1):
-    """Read positive judgments, normalizing table IDs for matching."""
-    relevant = defaultdict(set)
-    for line in Path(path).read_text().splitlines():
-        if line.strip():
-            qid, _, uid, grade = line.split()
-            if int(grade) >= min_grade:
-                relevant[check_id(qid)].add(normalize_table_id(check_id(uid)))
-    return relevant
-
-
 COORDINATES = 'zero-based Corpus.json rows[row][column], including header rows'
-SCHEMA_VERSION = '2.0'
+SCHEMA_VERSION = '3.0'
 
-
+# Represents a table passed from Stage 1 retrieval into Stage 2.
 @dataclass
 class Candidate:
     """A table passed between stages, with optional retrieval rank and score."""
@@ -129,7 +78,8 @@ class Candidate:
     table: Optional[dict]
     retrieval_rank: Optional[int] = None
     retrieval_score: Optional[float] = None
-
+    
+    # makes sure malformed candidates don't enter Stage 2.
     def __post_init__(self):
         if not isinstance(self.table_id, str) or not self.table_id:
             raise ValueError('Candidate table_id must be nonempty text.')
@@ -152,7 +102,7 @@ class Candidate:
             raise ValueError('Each candidate needs table_id and table fields.')
         return cls(value['table_id'], value['table'], value.get('retrieval_rank'), value.get('retrieval_score'))
 
-
+# Safely writes retrieval results without overwriting an existing result file.
 def write_predictions(path, predictions):
     """Write JSONL results without replacing an existing output file."""
     import os
