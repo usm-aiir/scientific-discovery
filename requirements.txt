@@ -1,17 +1,24 @@
-# Shared dependencies for table retrieval, scraping, and query generation.
-torch==2.5.1
-torchvision==0.20.1
-transformers==4.51.3
-tokenizers==0.21.4
-huggingface-hub==0.36.2
-numpy==1.26.4
-pandas==2.1.4
+# Live retrieval and both experiments: versions from the verified Structural BGE environment.
+torch==2.14.0
+transformers==5.17.0
+numpy==2.2.6
+tokenizers==0.23.2
+huggingface-hub==1.33.0
 safetensors==0.8.0
 tqdm==4.70.1
-accelerate==1.2.1
-bitsandbytes==0.46.1
 beautifulsoup4==4.12.3
-Pillow==11.1.0
+
+# Existing scraping, figure and query-generation tools (not needed by table retrieval).
+torchvision==0.29.1
+pandas==2.3.3
+Pillow==12.3.0
 requests==2.32.3
-sentencepiece==0.2.0
-protobuf==5.29.3
+accelerate==1.15.0
+bitsandbytes==0.46.1
+sentencepiece==0.2.2
+protobuf==7.36.2
+
+# Editable installation and the retrieval test suite.
+pip==26.2.1
+setuptools==84.0.0
+pytest==8.4.2

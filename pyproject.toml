@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,14 +7,8 @@ name = "scientific-table-retrieval"
 version = "0.1.0"
 description = "Two-stage scientific table and evidence-cell retrieval"
 readme = "table_retrieval/README.md"
-requires-python = ">=3.9"
-dependencies = [
-  "beautifulsoup4>=4.12,<5",
-  "numpy>=1.26,<2",
-  "torch>=2.5,<3",
-  "transformers>=4.51,<6",
-  "tqdm>=4.70,<5",
-]
+requires-python = ">=3.10"
+# Library versions live only in requirements.txt; setup.sh installs them first.
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -33,6 +27,6 @@ exclude = [
 namespaces = true
 
 [tool.setuptools.package-data]
-table_retrieval = ["config.json"]
-"table_retrieval.experiments.stage1" = ["settings.json", "data/*.json", "data/*.tsv"]
-"table_retrieval.experiments.stage2_bge" = ["*.json", "requirements.txt", "data/*.json", "data/*.tsv", "reference/*.json"]
+table_retrieval = ["config.example.json"]
+"table_retrieval.experiments.stage1" = ["data/val.json", "data/test.json", "data/val_qrels.tsv", "data/manifest.json"]
+"table_retrieval.experiments.stage2_bge" = ["config.json", "data/*.json"]

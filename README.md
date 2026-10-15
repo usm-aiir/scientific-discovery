@@ -20,13 +20,22 @@ evaluate_clip_retrieval.py Evaluates CLIP text-to-image retrieval against ground
 
 ## Setup
 
-Clone the repository and run the installer, which creates and populates the `scidiscovery` conda environment automatically:
+With Conda installed, clone the repository and create the shared table-retrieval
+environment for live retrieval, Stage 1 indexing/evaluation and Stage 2 BGE
+training/evaluation:
 
 ```bash
 git clone <repository-url>
 cd scientific-discovery
-bin/install
+bash setup.sh
+conda activate table-retrieval
 ```
+
+All Python dependencies are pinned in `requirements.txt`. `pyproject.toml`
+contains package/build metadata only; setup installs the package in editable mode.
+Setup leaves an existing `table-retrieval` environment untouched. Model weights,
+indexes, corpus and source HTML are external assets, not installed dependencies;
+see [table retrieval](table_retrieval/README.md) for the required paths.
 
 ## Usage
 
@@ -145,20 +154,20 @@ Vanilla CLIP performs near-randomly on scientific figures, establishing the base
 
 ## Environments
 
-The pipeline uses two conda environments:
+Table retrieval and both table experiments use `table-retrieval`, created by
+`bash setup.sh`. There is no `environment.yml` and no additional experiment
+requirements file.
 
-**`scidiscovery`** — used for scraping, sampling, and query generation. Created automatically by the installer:
-
-```bash
-bin/install
-```
-
-**`llm2vecenv`** — used only for CLIP retrieval evaluation. Pre-installed on the HPC cluster at `/apps/conda/adah.holt/envs/llm2vecenv`. To recreate on a new machine:
+**Legacy tools:** the existing scraping, sampling and query-generation launchers
+still target `scidiscovery`. The deprecated installer retains this compatibility
+route, using the same root `requirements.txt`:
 
 ```bash
-conda env create -f environment_llm2vec.yml
-conda activate llm2vecenv
+bash bin/install --tools
 ```
+
+The historical `llm2vecenv` CLIP environment on the HPC cluster is unrelated to
+table retrieval and is not created by `setup.sh`.
 
 ## Purpose
 
