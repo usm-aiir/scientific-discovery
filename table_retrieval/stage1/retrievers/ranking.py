@@ -1,9 +1,7 @@
-"""
-Exact vector ranking for table retrieval.
+"""Ranks tables by similarity to the query embeddings."""
 
-Computes similarity scores between query and table vectors, returns the
-top-k matches, and uses corpus order to break score ties consistently.
-"""
+
+# Computes similarity scores and returns the top-k table indices and scores.
 import numpy as np
 
 def rank_tables(query_vectors, table_vectors, top_k):

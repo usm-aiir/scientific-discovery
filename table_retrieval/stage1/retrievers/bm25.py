@@ -1,34 +1,18 @@
-"""
-BM25 lexical retrieval and saved indexing.
-
-Tokenizes table text, builds and saves BM25 indexes, reloads them for reuse,
-and ranks tables by lexical similarity to each query.
-"""
+"""Loads and searches the lexical BM25 backend used by Stage 1."""
 from collections import Counter, defaultdict
 import math
 import re
 import numpy as np
-from transformers import AutoTokenizer
-from ...data import check_id, digest, load_corpus, load_json, load_queries
-from ..text import table_text
+from ...data import check_id
 
+# Converts text into lowercase tokens while keeping decimals and hyphenated words together.
 def tokenize(text):
-    """Lowercase words/numbers; retain internal decimal points and hyphens.
-
-    Examples: 'Qwen-0.5B' and '2.59' each remain one token. No stemming
-    or stopword removal is applied in this first baseline.
-    """
+    
     return re.findall(r"\w+(?:[.\-]\w+)*", text.lower())
 
+# Builds a BM25 index from the prepared table text.
 class BM25:
-    """An in-memory inverted index: each term points to tables containing it.
-
-    Uses positive IDF: log(1 + (N - df + 0.5) / (df + 0.5)).
-    k1 controls term-frequency saturation; b controls length normalization.
-    Table IDs break score ties deterministically. No training is required.
-    Input maps table IDs to prepared strings; callers choose the text format.
-    """
-
+# Prepares table tokens and BM25 weights for fast searching.
     def __init__(self, texts, k1=1.2, b=0.75):
         if not texts:
             raise ValueError("The text collection is empty.")
@@ -60,6 +44,7 @@ class BM25:
             weights = idf * frequencies * (k1 + 1) / (frequencies + normalization[indices])
             self.postings[term] = (indices, weights)
 
+# Scores tables against the query and returns the top matching tables.
     def search(self, query, top_k=10):
         """Return (table ID, score) pairs; omit tables with zero lexical overlap."""
         if top_k < 1:
@@ -73,46 +58,9 @@ class BM25:
         order = np.argsort(-scores[candidates], kind="stable")[:top_k]
         return [(self.table_ids[i], float(scores[i])) for i in candidates[order]]
 
-def index_lexical(args):
-    """Persist BM25 postings as arrays (no pickle); reuse for every query split."""
-    manifest = load_json(args.output / 'prepared.json')
-    if digest(manifest['corpus']) != manifest['corpus_sha256']:
-        raise ValueError('Corpus changed since preparation')
-    for filename, key in [('table_ids.json', 'ids_sha256'), ('table_inputs.json', 'inputs_sha256')]:
-        if digest(args.output / filename) != manifest[key]:
-            raise ValueError(f'Prepared {filename} changed')
-    corpus = load_corpus(manifest['corpus'])
-    ids = load_json(args.output / 'table_ids.json')
-    sequences = load_json(args.output / 'table_inputs.json')
-    if ids != sorted(corpus) or len(sequences) != len(ids):
-        raise ValueError('Corpus and prepared inputs differ')
-    tokenizer = AutoTokenizer.from_pretrained(args.output / 'tokenizer')
-    wrapper = tokenizer('', add_special_tokens=True)['input_ids']
-    if len(wrapper) != 2 or any(seq[0] != wrapper[0] or seq[-1] != wrapper[-1] for seq in sequences):
-        raise ValueError('Unexpected tokenizer special-token layout')
-    for name in ['bm25_full', 'bm25_matched']:
-        path = args.output / f'{name}.npz'
-        if path.exists():
-            continue
-        texts = ({uid: table_text(corpus[uid]) for uid in ids} if name == 'bm25_full' else
-                 {uid: tokenizer.decode(seq[1:-1], clean_up_tokenization_spaces=False)
-                  for uid, seq in zip(ids, sequences)})
-        model = BM25(texts, k1=manifest['bm25_k1'], b=manifest['bm25_b'])
-        terms = list(model.postings)
-        indices, weights = zip(*(model.postings[term] for term in terms))
-        offsets = np.cumsum([0] + [len(values) for values in indices])
-        # Atomic completion: partial files never look like complete indexes.
-        temporary = path.with_suffix('.tmp')
-        with temporary.open('xb') as stream:
-            np.savez(stream, ids=np.array(model.table_ids), terms=np.array(terms), offsets=offsets,
-                     indices=np.concatenate(indices), weights=np.concatenate(weights),
-                     inputs_sha256=manifest['inputs_sha256'], corpus_sha256=manifest['corpus_sha256'],
-                     k1=manifest['bm25_k1'], b=manifest['bm25_b'])
-        temporary.replace(path)
-        print(f'Indexed {len(ids):,} tables: {name}', flush=True)
-
-
+# Loads a saved BM25 index and checks that it still matches the prepared data.
 def load_lexical(path, manifest):
+    """Restore a validated, pickle-free BM25 index."""
     with np.load(path, allow_pickle=False) as arrays:
         for key in ['inputs_sha256', 'corpus_sha256']:
             if str(arrays[key]) != manifest[key]:
@@ -125,22 +73,3 @@ def load_lexical(path, manifest):
         model.postings = {term: (indices[start:end], weights[start:end])
                           for term, start, end in zip(arrays['terms'].tolist(), offsets, offsets[1:])}
     return model
-
-
-def search(args):
-    manifest = load_json(args.output / 'prepared.json')
-    queries = load_queries(args.output / 'queries.json')
-    if digest(args.output / 'queries.json') != manifest['saved_queries_sha256']:
-        raise ValueError('Prepared queries changed')
-    results = {}
-    for name in ['bm25_full', 'bm25_matched']:
-        if (getattr(args, 'rankings', args.output) / f'{name}.run').exists():
-            continue
-        source = args.output / f'{name}.npz'
-        if not source.exists() and getattr(args, 'source', None):
-            source = args.source / f'{name}.npz'
-        model = load_lexical(source, manifest)
-        rankings = {check_id(q['query_id']): model.search(q['query'], manifest['candidate_depth'])
-                    for q in queries}
-        results[name] = rankings
-    return results
