@@ -1,15 +1,11 @@
-"""
-Evaluate and compare table retrieval results.
-
-Validates saved rankings, calculates Recall@10, compares BM25 and BGE results,
-and identifies relevant tables found by only one retrieval method.
-"""
+"""Validates saved runs and reports offline Stage 1 retrieval metrics."""
 from collections import defaultdict
 import json
 import math
 from pathlib import Path
 import numpy as np
-from ..data import load_json, load_queries, normalize_table_id, check_id, digest, read_run, write_json, load_qrels
+from ..data import load_json, normalize_table_id, check_id, digest, write_json
+from .data import load_queries, read_run, load_qrels
 
 def evaluate(run_path, qrels_path, query_ids, k=10, min_grade=1):
     """Calculate recall for all requested queries.

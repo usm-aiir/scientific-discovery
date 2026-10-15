@@ -38,20 +38,13 @@ local_docs/
 
 # Local correctness and regression tests.
 /table_retrieval/tests/
+/table_retrieval/evaluation/tests/
 
 # Historical model smoke tests remain local.
 /test_colpali.py
 
-# Generated Stage-2 datasets and preparation reports.
-/table_retrieval/stage2/bge/data/
-/table_retrieval/stage2/synthetic/cleaned/
-/table_retrieval/stage2/synthetic/rejected/
-/table_retrieval/stage2/synthetic/reports/
-/table_retrieval/stage2/synthetic/splits/
-
 # Local research code and demonstration application.
 /table_retrieval/experiments/
-/table_retrieval/demo/
 
 # Isolated local annotation environment.
 /.venv-annotation/
