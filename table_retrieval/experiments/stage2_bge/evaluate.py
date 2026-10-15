@@ -1,4 +1,4 @@
-# Ranks cells in the frozen Stage 1 pool or rescores the committed original predictions.
+# Ranks cells in the fixed Stage 1 pool or rescores a supplied predictions file.
 import argparse
 import json
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 from table_retrieval.data import digest, load_json, write_json
 from table_retrieval.stage1.artifacts import resolve_device
 from table_retrieval.stage2.bge.model import BGECellSelector
-from .data import HERE, candidate_cells, cell_key, query_labels, read_data
+from .dataset import HERE, candidate_cells, cell_key, query_labels, read_data
 from .metrics import score_queries
 
 
@@ -45,18 +45,20 @@ def main(argv=None):
     parser.add_argument('--split', choices=['val', 'test'], default='test')
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--checkpoint', type=Path, help='A trained checkpoint, or its run folder containing training.json')
-    mode.add_argument('--saved', action='store_true', help='Rescore the original predictions without loading BGE')
+    mode.add_argument('--predictions', type=Path, help='Rescore an existing predictions JSON without loading BGE')
     parser.add_argument('--device', default='auto')
     parser.add_argument('--output', type=Path, help='New folder for predictions and metrics')
     args = parser.parse_args(argv)
-    from .prepare import validate_data
+    from .dataset import validate_data
     validate_data()
     if args.output and args.output.exists():
         parser.error('Output already exists; choose a new --output.')
     snapshot = read_data(f'{args.split}_candidates.json')
     labels = query_labels(args.split)
-    if args.saved:
-        predictions = load_json(HERE / 'reference' / f'{args.split}_rankings.json')
+    if args.predictions:
+        predictions = load_json(args.predictions)
+        if predictions.get('split') != args.split:
+            parser.error('Predictions split differs from --split.')
     else:
         if args.output is None:
             parser.error('--checkpoint requires --output to preserve the experiment results.')
@@ -80,10 +82,6 @@ def main(argv=None):
                        'records': records}
     validate_rankings(predictions['records'], snapshot, labels)
     metrics = score_queries(predictions['records'])
-    if args.saved:
-        expected = load_json(HERE / 'reference' / 'metrics.json')[args.split]
-        if metrics != expected:
-            raise ValueError('Original predictions no longer reproduce the recorded metrics.')
     if args.output:
         args.output.mkdir(parents=True)
         write_json(args.output / 'predictions.json', predictions)

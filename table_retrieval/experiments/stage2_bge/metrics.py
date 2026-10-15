@@ -2,8 +2,29 @@
 import math
 
 
+# The ranking must be in descending model-score order, never sorted by cell ID.
+def ndcg_at_k(ranked, gold, k=5):
+    """Binary nDCG for one query with at least one annotated gold cell.
+
+    DCG@k = sum(1/log2(rank+1) for gold cells at score ranks 1..k).
+    IDCG@k = sum(1/log2(rank+1) for ranks 1..min(k, number of gold cells)).
+    Gold includes evidence outside the Stage 1 pool. Zero retrieved gold yields
+    zero, not exclusion. The caller averages all scorable queries equally.
+    """
+    if not gold or k < 1:
+        raise ValueError('nDCG requires nonempty gold and a positive cutoff.')
+    dcg = sum(1 / math.log2(rank + 1) for rank, cell in enumerate(ranked[:k], 1) if cell in gold)
+    ideal = sum(1 / math.log2(rank + 1) for rank in range(1, min(k, len(gold)) + 1))
+    return dcg / ideal
+
+
 # Gold includes cells absent from Stage 1, so the end-to-end denominator is preserved.
 def score_queries(records, k=5):
+    """Score the same queries/labels for micro P/R/F1 and mean binary nDCG@k.
+
+    Every supplied query is included, including zero-hit queries. Each query
+    must have gold labels; fixed test evaluation validates all 91 queries first.
+    """
     if not records or k < 1:
         raise ValueError('Scoring requires queries and a positive cutoff.')
     hits = returned = gold_count = available = table_hits = table_gold = table_count = 0
@@ -22,8 +43,7 @@ def score_queries(records, k=5):
             hits_at[cutoff] += len(set(ranked[:cutoff]) & gold)
         ranks = [rank for rank, item in enumerate(ranked, 1) if item in gold]
         mrr += 1 / ranks[0] if ranks else 0
-        ideal = sum(1 / math.log2(i + 2) for i in range(min(k, len(gold))))
-        ndcg += sum(1 / math.log2(rank + 1) for rank in ranks if rank <= k) / ideal
+        ndcg += ndcg_at_k(ranked, gold, k)
         gold_tables = {item[0] for item in gold}
         tables = record['candidate_table_ids']
         table_hits += len(set(tables) & gold_tables)

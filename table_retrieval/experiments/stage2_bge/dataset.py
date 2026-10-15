@@ -1,5 +1,6 @@
-# Loads the fixed experiment data and prepares the original training inputs.
+# Loads and validates fixed datasets and prepares the original BGE training inputs.
 from collections import Counter
+from itertools import combinations
 from pathlib import Path
 import random
 
@@ -100,3 +101,36 @@ def candidate_cells(query, snapshot):
             cell['text'] = structural_bge_text(cell, table, context)
             cells.append(cell)
     return cells
+
+
+# Check fixed splits and coordinates without reshuffling or reading historical outputs.
+def validate_data():
+    manifest = load_json(DATA / 'manifest.json')
+    for name, saved in manifest['files'].items():
+        if digest(DATA / name) != saved['sha256']:
+            raise ValueError(f'Experiment data changed: {name}')
+    splits = {name: read_data(f'{name}.json')['annotations'] for name in ('train', 'val', 'test')}
+    for left, right in combinations(splits.values(), 2):
+        for field in ('sample_id', 'query_id', 'paper_id'):
+            if {str(item[field]) for item in left} & {str(item[field]) for item in right}:
+                raise ValueError(f'Split overlap in {field}')
+    for name, examples in splits.items():
+        if len({item['sample_id'] for item in examples}) != len(examples):
+            raise ValueError(f'Duplicate samples: {name}')
+        for example in examples:
+            training_cells(example, 'legacy')
+    for split in ('val', 'test'):
+        snapshot = read_data(f'{split}_candidates.json')
+        queries = query_labels(split)
+        if len(snapshot['queries']) != len(queries) or {q['query_id'] for q in snapshot['queries']} != set(queries):
+            raise ValueError(f'Frozen query IDs differ: {split}')
+        for query in snapshot['queries']:
+            if len(query['candidate_table_ids']) != 5 or len(set(query['candidate_table_ids'])) != 5:
+                raise ValueError('Expected five unique Stage 1 candidates.')
+            candidate_cells(query, snapshot)
+    config = load_json(HERE / 'config.json')
+    pairs, counts = training_pairs(read_data(config['train_split'])['annotations'], config)
+    expected = manifest['training']['config.json']
+    if len(pairs) != expected['positive_pairs'] or counts != expected['negative_assignments']:
+        raise ValueError('Training pairs differ from the fixed experiment.')
+    return {name: len(examples) for name, examples in splits.items()}

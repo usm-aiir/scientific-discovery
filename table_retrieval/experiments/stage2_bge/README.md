@@ -1,119 +1,126 @@
-# Stage 2: Structural BGE
+# Stage 2: Structural BGE cell retrieval
 
-This is the reproducible path for Experiment 3, arm `B_bge_structural`:
-Stage 1's five retrieved tables → structural cell text → BGE cosine ranking
-→ five evidence cells. The checkpoint was trained in Experiment 2 on
-table-aware inputs. Recovered structure was added when ranking cells; the
-reported run did not retrain on recovered HTML text.
+## Purpose
 
-## Check the reported metrics
+Reproduce training and evaluation of the Structural BGE cell retriever.
+It ranks candidate cells from Stage 1's Top-5 tables and returns the global
+Top-5 evidence cells.
 
-From the repository root, install the project and verify the supplied data:
+## Input
 
-```bash
-pip install -e . -r table_retrieval/experiments/stage2_bge/requirements.txt
-python -m table_retrieval.experiments.stage2_bge.prepare
-python -m table_retrieval.experiments.stage2_bge.evaluate --saved --split test
-```
+Evaluation uses frozen Stage 1 tables and candidate cells. Each cell is formatted
+with its value, labels and recovered structural context, then scored against the
+question using BGE cosine similarity. The experiment uses the live cell formatter.
 
-The last command scores the original, complete rankings in `reference/`
-against the committed test labels. It checks every query, candidate table,
-and cell ID. It performs no model inference.
+The snapshots include the tables and recovered context, so this experiment does
+not need to rebuild Stage 1 or load the original HTML. Keep the candidate pools,
+cell IDs and coordinates unchanged.
 
-| Split | Queries | Gold cells | Correct@5 | Precision@5 | Recall@5 | nDCG@5 |
-|---|---:|---:|---:|---:|---:|---:|
-| Validation | 93 | 240 | 103 | 22.15% | 42.92% | 52.93% |
-| Test | 91 | 333 | 105 | 23.08% | 31.53% | 47.59% |
+## Data
 
-Precision and recall pool counts across questions (micro). nDCG@5 is binary
-discounted gain averaged across questions; the ideal ranking includes all
-gold cells up to five, including evidence absent from Stage 1. Test Stage 1
-contains 265/333 gold cells (79.58%). Its table Precision@5 and Recall@5 are
-22.42% and 83.61% against the Stage 2 annotations. These differ from Stage 1's
-250-query table benchmark.
+| File | Contents |
+|---|---|
+| `data/train.json` | 1,223 query/table examples with 2,829 positive cells. |
+| `data/val.json` | 122 examples grouped into 93 validation questions. |
+| `data/test.json` | 122 examples grouped into 91 test questions. |
+| `data/val_candidates.json` | Frozen validation Top-5 tables, cells and structural context. |
+| `data/test_candidates.json` | Frozen test Top-5 tables, cells and structural context. |
+| `data/manifest.json` | Data checksums and expected training-pair counts. |
 
-These are the five ranked cells before evidence aggregation. The historical
-34.83% recall after aggregation is a separate output and is not a metric of
-the live Stage 2 Top-5 response. `reference/metrics.json` is calculated from
-the ranked predictions; nDCG@5 was added here, not copied from the old report.
+Gold evidence labels, coordinates and values are included in the annotation
+files. `dataset.py` validates the fixed files and prepares model inputs; it does
+not reshuffle the splits. These are the project's existing annotations, not a
+newly human-verified benchmark.
 
-## Train and evaluate BGE
+## Training
+
+Complete the shared [setup](../../README.md#setup). Run all commands from the
+repository root:
 
 ```bash
 python -m table_retrieval.experiments.stage2_bge.train --device cuda:0
-python -m table_retrieval.experiments.stage2_bge.evaluate \
-  --checkpoint table_retrieval/experiments/stage2_bge/runs/reported \
-  --split val --device cuda:0 \
-  --output table_retrieval/experiments/stage2_bge/runs/validation
-python -m table_retrieval.experiments.stage2_bge.evaluate \
-  --checkpoint table_retrieval/experiments/stage2_bge/runs/reported \
-  --split test --device cuda:0 \
-  --output table_retrieval/experiments/stage2_bge/runs/test
 ```
 
-`config.json` fixes the original recipe: BAAI/bge-m3 revision
-`5617a9f61b028005a4858fdac845db406aefb181`, 1,223 training examples,
-2,829 positive pairs, four negatives per positive, seed 42, three epochs,
-AdamW at 1e-5, batch size one, accumulation four, temperature 0.02, and
-512-token inputs. Each improving epoch is saved. `training.json` records
-the selected checkpoint, input settings, environment, and checkpoint hashes.
-The selected epoch uses full-ranking validation nDCG within the annotated
-table, as in the original training. No test labels enter training or epoch
-selection. The separate data check reads test labels only to validate their
-coordinates and split isolation.
+Training downloads the pinned base BGE-M3 model and follows [config.json](config.json):
+seed 42, three epochs, AdamW at 1e-5, batch size one, accumulation four,
+four negatives per positive, temperature 0.02 and 512-token inputs.
+The fixed recipe trains on table-aware cell text; evaluation adds recovered
+structural context.
 
-Inference uses float32, stable score ties in candidate-table/row/column order,
-and the live structural formatter. The original run used Torch 2.14.0+cu130
-and Transformers 5.17.0; those versions and checkpoint checksums are recorded
-in `reference/provenance.json`. Training uses bfloat16 on a supported GPU,
-otherwise float32. CPU works but full BGE-M3 training is expensive. Different
-software or hardware can change scores near ties and retrained weight hashes.
+Validation selects the best epoch using full-ranking binary nDCG within each
+annotated table. Test labels are not used for training or checkpoint selection.
+Improving checkpoints and `training.json`, which identifies the selected epoch,
+are written to `results/stage2_bge/train/`.
 
-## Fixed data
+Use `--device cpu` without a compatible GPU, although training will be slower.
+Use `--output /path/to/new_run` for another run. Existing outputs are protected.
 
-- `data/train.json`, `val.json`, `test.json`: original annotated table snapshots
-  with evidence coordinates and values. Validation and test have 122 annotated
-  query/table pairs each, grouped into 93 and 91 questions.
-- `data/*_cell_qrels.tsv`: the same validation and test evidence as explicit judgments.
-- `data/*_candidates.json`: exact Stage 1 Top-5 table order, table snapshots,
-  and recovered structural context for every candidate cell. These include
-  distractor tables. They preserve the full-corpus retrieval experiment without
-  requiring its large index or the original HTML directory.
-- `data/manifest.json`: SHA-256 checksums and training-pair counts. The prepare
-  command checks coordinates, labels, split isolation, candidate pools, and
-  both training recipes. It does not regenerate or reshuffle the splits.
-- `reference/`: complete original Structural BGE rankings, derived metrics,
-  training histories, and source/checkpoint hashes.
+## Evaluation
 
-The annotations came from the project's scientific-table annotation workflow;
-they are not a new human-verified benchmark. Original provenance fields,
-including historical local paths, are retained in the split files but are not
-opened by these scripts. Published metrics treat unjudged cells as non-gold.
-
-Stage 1 is frozen for the reported comparison. Changing its index or corpus
-creates a new experiment; the reported numbers apply to these exact candidates.
-See `../stage1/README.md` to build Stage 1 against the original full corpus.
-
-## Reproduce the currently configured runtime checkpoint
-
-The live `table_retrieval/config.json` currently points to the earlier
-`results/stage2/bge_finetuned/best_model`, trained on 975 examples using legacy
-row/header/value text. Its weights are distinct from Experiment 2's checkpoint.
-For that training recipe use:
+Evaluate the selected checkpoint on both fixed splits:
 
 ```bash
-python -m table_retrieval.experiments.stage2_bge.train \
-  --config table_retrieval/experiments/stage2_bge/runtime.json \
-  --output table_retrieval/experiments/stage2_bge/runs/runtime --device cuda:0
+python -m table_retrieval.experiments.stage2_bge.evaluate \
+  --checkpoint results/stage2_bge/train --split val --device cpu \
+  --output results/stage2_bge/val
+
+python -m table_retrieval.experiments.stage2_bge.evaluate \
+  --checkpoint results/stage2_bge/train --split test --device cpu \
+  --output results/stage2_bge/test
 ```
 
-`runtime.json` uses `data/runtime_train.json` (975 examples; 2,241 positive
-pairs). It shares the same fixed validation/test split and training settings.
-`reference/runtime_training.json` records the original training result. The
-31.53% result belongs to the main recipe above, not this earlier checkpoint.
+`--checkpoint` accepts a training run folder or a checkpoint directory. To score
+the exact reported weights, replace `results/stage2_bge/train` with
+`experiment2/checkpoint`. Evaluation uses float32, 512-token inputs and 32-cell
+encoding batches. `--device cuda:0` also supports float32 experiment evaluation.
 
-Either saved checkpoint can be loaded by live Stage 2: set `stage2_checkpoint`
-in `table_retrieval/config.json` to the chosen epoch directory. Relative paths
-there resolve from `table_retrieval/`. Structural source recovery remains
-optional in live retrieval; the benchmark uses its committed recovered context.
-The scripts do not change the live checkpoint automatically.
+Evaluation writes `predictions.json` and `metrics.json`. Choose a new `--output`
+directory for each run. Checkpoints and outputs belong under gitignored `results/`.
+Rescore saved predictions without loading a model:
+
+```bash
+python -m table_retrieval.experiments.stage2_bge.evaluate --split test \
+  --predictions results/stage2_bge/test/predictions.json
+```
+
+## Metrics
+
+Reported test results use all 91 questions and 333 annotated gold cells:
+
+| Metric | Test result |
+|---|---:|
+| Precision@5 | 23.08% |
+| Recall@5 | 31.53% |
+| F1@5 | 26.65% |
+| nDCG@5 | 47.59% |
+
+`metrics.py` pools cell counts for precision, recall and F1 (micro): 105 correct
+cells among 455 returned cells. Gold cells are identified by `(table_id, cell_id)`;
+unjudged cells count as non-gold.
+
+nDCG@5 uses binary relevance in descending BGE score order:
+
+```text
+DCG@5  = sum(rel(rank) / log2(rank + 1), rank = 1..5)
+IDCG@5 = sum(1 / log2(rank + 1), rank = 1..min(5, total annotated gold cells))
+nDCG@5 = mean(DCG@5 / IDCG@5 over all 91 test questions)
+```
+
+All questions count equally, including those with zero Top-5 hits. Recall and
+IDCG include gold cells missing from Stage 1; no availability filter is applied.
+Only 265 of the 333 test gold cells are in the frozen candidate pools.
+
+## Checkpoint
+
+The trained checkpoint is external and is not committed to Git. The expected
+checkpoint is `experiment2/checkpoint/`, relative to the repository root, with
+the selected epoch-3 weights. Its `model.safetensors` SHA-256 must be:
+
+```text
+47bab214c0ec63d676586ab0632af33a6915ca9d306d1a3b2eaf026b85433c48
+```
+
+Supply this checkpoint to reproduce the exact reported weights. Fresh training
+may produce different hashes or near-tie scores across hardware/software setups.
+The live [example config](../../config.example.json) points to this checkpoint
+and uses CPU float32 inference; the live CUDA selector uses float16 instead.

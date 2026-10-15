@@ -6,7 +6,7 @@ from pathlib import Path
 
 from table_retrieval.data import digest, load_json, write_json
 from table_retrieval.stage1.artifacts import resolve_device
-from .data import DATA, HERE, read_data, training_cells, training_pairs
+from .dataset import DATA, HERE, read_data, training_cells, training_pairs
 from .metrics import validation_ndcg
 
 
@@ -109,10 +109,10 @@ def fit(model, tokenizer, examples, validation, config, output, device):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__ or 'Train the Stage 2 BGE checkpoint.')
     parser.add_argument('--config', type=Path, default=HERE / 'config.json')
-    parser.add_argument('--output', type=Path, default=HERE / 'runs' / 'reported')
+    parser.add_argument('--output', type=Path, default=HERE.parents[2] / 'results/stage2_bge/train')
     parser.add_argument('--device', default='auto')
     args = parser.parse_args(argv)
-    from .prepare import validate_data
+    from .dataset import validate_data
     validate_data()
     config = load_json(args.config)
     if args.output.exists():
