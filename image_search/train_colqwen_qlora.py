@@ -28,6 +28,12 @@ Changes vs. previous version:
     new adapter with the same name ('default'), which silently replaced the
     pretrained retrieval adapter, so every run started from the untrained base
   - FIX: gradient checkpointing now actually turns on (it was silently skipped)
+  - --no_quantize: train the LoRA adapter on top of the full bf16 model
+    (plain LoRA instead of QLoRA), to rule out 4-bit quantization as a factor
+  - --val_distractors K: add K fixed random corpus figures to the validation
+    candidate pool, so validation is harder and predicts full-corpus test better
+  - --overfit_n N: sanity check -- train on N training queries only and
+    validate on those SAME queries; a working pipeline should memorize them
   - optional same-paper hard negatives (--hard_negatives K): each query also
     competes against K other figures from its own paper, which is the hard
     part of this task (picking the right figure/panel within one paper)
@@ -414,6 +420,17 @@ def main():
                              "instead of just the docs referenced in the val qrels file. "
                              "Much slower but matches deployment conditions.")
 
+    parser.add_argument("--val_distractors", type=int, default=0,
+                        help="Add this many fixed, randomly chosen corpus figures to the validation "
+                             "candidate pool (default 0 = only figures in the val qrels). E.g. 3000 makes "
+                             "validation much closer to full-corpus test retrieval.")
+    parser.add_argument("--overfit_n", type=int, default=0,
+                        help="SANITY CHECK: train on only N training queries and validate on those same "
+                             "queries. If the pipeline works, validation should climb towards 1.0.")
+    parser.add_argument("--no_quantize", action="store_true",
+                        help="Load the base model in bf16 instead of 4-bit (plain LoRA, not QLoRA). "
+                             "Uses more GPU memory (fits on a 48 GB A6000).")
+
     parser.add_argument("--new_adapter", action="store_true",
                         help="Old behaviour: add a fresh LoRA adapter instead of continuing the "
                              "pretrained one. WARNING: this discards the pretrained retrieval "
@@ -440,7 +457,7 @@ def main():
         "cuda:0" if torch.cuda.is_available() else "cpu"
     )
     if device.type != "cuda":
-        raise SystemExit("QLoRA (4-bit) requires a CUDA GPU. No GPU detected / selected.")
+        raise SystemExit("Training requires a CUDA GPU. No GPU detected / selected.")
 
     if args.train_batch_size < 8 and args.hard_negatives == 0:
         print(f"[NOTE] train_batch_size={args.train_batch_size} gives each query only "
@@ -462,12 +479,30 @@ def main():
     val_queries   = load_queries(args.val_json)
     val_qrels     = load_qrels(args.val_qrels)
 
-    full_corpus_ids = [doc_id for doc_id, _ in canonical_items] if args.eval_full_corpus else None
-    report_qrels_coverage(
-        val_qrels,
-        full_corpus_ids if full_corpus_ids is not None else doc_index.keys(),
-        label="val qrels vs. " + ("canonical corpus ids" if full_corpus_ids is not None else "doc index"),
-    )
+    if args.overfit_n:
+        # Sanity check: keep N training queries that have at least one image on
+        # disk, train only on them, and "validate" on exactly those queries.
+        usable = sorted(q for q, docs in train_qrels.items()
+                        if q in train_queries and any(r > 0 and d in doc_index for d, r in docs.items()))
+        chosen = sorted(random.Random(args.seed).sample(usable, min(args.overfit_n, len(usable))))
+        train_qrels = {q: train_qrels[q] for q in chosen}
+        val_queries, val_qrels = train_queries, train_qrels
+        print(f"[OVERFIT TEST] Training AND validating on the same {len(chosen)} training queries. "
+              f"If training works, validation nDCG@10 should rise towards 1.0.")
+
+    if args.eval_full_corpus:
+        candidate_ids = [doc_id for doc_id, _ in canonical_items]
+    else:
+        candidate_ids = sorted({d for docs in val_qrels.values() for d in docs if d in doc_index})
+        if args.val_distractors:
+            pool = [doc_id for doc_id, _ in canonical_items if doc_id not in set(candidate_ids)]
+            extra = random.Random(args.seed + 1).sample(pool, min(args.val_distractors, len(pool)))
+            candidate_ids = sorted(set(candidate_ids) | set(extra))
+    print(f"Validation candidate pool: {len(candidate_ids)} figures"
+          + (" (full corpus)" if args.eval_full_corpus else
+             f" ({args.val_distractors} random distractors added)" if args.val_distractors else
+             " (val-qrels figures only -- an easy pool; consider --val_distractors)"))
+    report_qrels_coverage(val_qrels, doc_index.keys(), label="val qrels vs. doc index")
 
     train_dataset = QueryFigurePairDataset(train_queries, train_qrels, doc_index)
     if not args.skip_image_check:
@@ -475,8 +510,12 @@ def main():
     if len(train_dataset) < args.train_batch_size:
         raise SystemExit("Not enough training pairs to form a single batch.")
 
-    print("Loading base model in 4-bit (QLoRA)...")
-    bnb_config = BitsAndBytesConfig(
+    if args.no_quantize:
+        print("Loading base model in bf16 (plain LoRA, NO 4-bit quantization)...")
+        quant_kwargs = {}
+    else:
+        print("Loading base model in 4-bit (QLoRA)...")
+        quant_kwargs = {"quantization_config": BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype=torch.bfloat16,
@@ -484,14 +523,14 @@ def main():
         # Keep the ColBERT projection head in full precision; if it is 4-bit
         # quantized its weight.dtype becomes uint8 and the projection crashes.
         llm_int8_skip_modules=["custom_text_proj"],
-    )
+        )}
     # Pin to a single device for training; device_map="auto" (multi-GPU split)
     # can cause gradient/dispatch issues with PEFT + QLoRA.
     model = ColQwen2_5.from_pretrained(
         args.model_name,
-        quantization_config=bnb_config,
         torch_dtype=torch.bfloat16,
         device_map={"": device.index if device.index is not None else 0},
+        **quant_kwargs,
     )
     processor = ColQwen2_5_Processor.from_pretrained(args.model_name)
     describe_adapters(model, "after loading pretrained model")
@@ -506,9 +545,11 @@ def main():
     # pretrained adapter itself instead.
     has_pretrained_adapter = bool(getattr(model, "peft_config", None))
 
-    # prepare_model_for_kbit_training freezes every parameter; we re-enable the
-    # LoRA weights below.
-    model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
+    # prepare_model_for_kbit_training freezes every parameter (and upcasts the
+    # small non-quantized ones to fp32); we re-enable the LoRA weights below.
+    # It is only meant for quantized models, so skip it with --no_quantize.
+    if not args.no_quantize:
+        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
 
     if args.gradient_checkpointing:
         # Needed so frozen/quantized layers still pass gradients through.
@@ -535,6 +576,11 @@ def main():
         print("Continuing training of the PRETRAINED ColQwen adapter (not adding a new one).")
         for name, param in model.named_parameters():
             param.requires_grad = "lora_" in name
+            # Keep trainable weights in fp32: tiny Adam updates on bf16 weights
+            # get rounded away (bf16 has only ~3 significant digits). The
+            # quantized path already does this inside prepare_model_for_kbit_training.
+            if param.requires_grad and param.dtype != torch.float32:
+                param.data = param.data.float()
     else:
         if has_pretrained_adapter:
             print("[WARN] --new_adapter: adding a fresh LoRA adapter. This REPLACES the "
@@ -599,7 +645,7 @@ def main():
             image_batch_size=args.eval_image_batch_size,
             query_batch_size=args.eval_query_batch_size,
             top_k=args.top_k_eval,
-            full_corpus_ids=full_corpus_ids,
+            full_corpus_ids=candidate_ids,
         )
         print(f"  Validation metrics ({tag}): {metrics}")
         return metrics
