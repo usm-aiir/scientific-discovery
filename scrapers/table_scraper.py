@@ -54,8 +54,8 @@ ar5iv quirks handled
   every cell gets correct (row, col) coordinates. Only the origin cell of
   a span is emitted; it carries ``"rowspan"`` / ``"colspan"`` so the dense
   grid can be reconstructed downstream.
-- **Multi-panel tables**: handled the same way as subfigures in
-  ``arxiv_scraper.py`` (e.g. Table 14(a) / 14(b)).
+- **Multi-panel tables**: split only when captions explicitly label the
+  subtables (e.g. Table 14(a) / 14(b)); unlabelled panels are merged.
 - **Nested tables in header cells**: flattened to plain text rather than
   being mis-parsed as a second table.
 - **Footnotes**: ar5iv embeds footnote text inline inside
@@ -363,49 +363,66 @@ def extract_table_grid(table_tag: Tag) -> Tuple[List[dict], int, int, List[dict]
 # (handles the rare multi-figcaption merged-wrapper quirk)
 # ---------------------------------------------------------------------------
 
-def _split_into_logical_groups(table_fig: Tag) -> List[Tuple[Tag, List[Tag]]]:
-    """
-    Split a ``<figure class="ltx_table">`` wrapper into
-    ``(figcaption, [content_tags])`` groups.
+def _split_into_logical_groups(table_fig: Tag) -> List[Tuple[Optional[Tag], List[Tag]]]:
+    """Pair each caption with its table, whichever one appears first."""
+    children = [child for child in table_fig.children if isinstance(child, Tag)]
+    captions = [i for i, child in enumerate(children) if child.name == "figcaption"]
+    if not captions:
+        # Some real tables have no caption; equation-layout tables do not count.
+        if table_fig.find("table", class_="ltx_tabular"):
+            return [(None, children)]
+        return []
+    numbered = [i for i in captions
+                if _CAPTION_LABEL_RE.search(children[i].get_text(" ", strip=True))]
+    if len(numbered) == 1:
+        # Other figcaptions in the wrapper are notes, not new tables.
+        i = numbered[0]
+        return [(children[i], [child for j, child in enumerate(children)
+                               if j not in captions])]
+    if len(captions) == 1:
+        i = captions[0]
+        return [(children[i], children[:i] + children[i + 1:])]
 
-    Most wrappers contain exactly one logical table. Occasionally one
-    wrapper contains several back-to-back logical tables (multiple direct
-    ``<figcaption>`` children). This function handles both cases uniformly
-    so each logical table is processed independently.
-    """
-    groups: List[Tuple[Tag, List[Tag]]] = []
-    current = None
-    for child in table_fig.children:
-        if not isinstance(child, Tag):
-            continue
-        if child.name == "figcaption":
-            current = (child, [])
-            groups.append(current)
-        elif current is not None:
-            current[1].append(child)
+    groups = []
+    if captions[0] == 0:
+        # Each caption starts a group.
+        for n, i in enumerate(captions):
+            end = captions[n + 1] if n + 1 < len(captions) else len(children)
+            groups.append((children[i], children[i + 1:end]))
+    else:
+        # Each caption ends a group.
+        start = 0
+        for i in captions:
+            groups.append((children[i], children[start:i]))
+            start = i + 1
     return groups
 
 
 def _find_panels(content_tags: List[Tag]) -> List[Tag]:
-    """Find sub-panel figure elements within a multi-part table."""
-    panels: List[Tag] = []
+    """Return real panel figures, excluding panels nested in other panels."""
+    panels = []
     for tag in content_tags:
-        if tag.name == "figure" and "ltx_figure_panel" in tag.get("class", []):
-            panels.append(tag)
-        else:
-            panels.extend(tag.find_all("figure", class_="ltx_figure_panel"))
+        candidates = [tag] if tag.name == "figure" else []
+        candidates += tag.find_all("figure")
+        for candidate in candidates:
+            classes = candidate.get("class", [])
+            if not {"ltx_table_panel", "ltx_figure_panel"} & set(classes):
+                continue
+            if any({"ltx_table_panel", "ltx_figure_panel"} & set(parent.get("class", []))
+                   for parent in candidate.parents if isinstance(parent, Tag) and parent.name == "figure"):
+                continue
+            panels.append(candidate)
     return panels
 
 
-def _find_direct_table(content_tags: List[Tag]) -> Optional[Tag]:
-    """Find the first ``<table>`` element within a list of content tags."""
+def _find_top_level_tables(content_tags: List[Tag]) -> List[Tag]:
+    """Find table elements that are not inside another table."""
+    tables = []
     for tag in content_tags:
-        if tag.name == "table":
-            return tag
-        found = tag.find("table")
-        if found is not None:
-            return found
-    return None
+        candidates = [tag] if tag.name == "table" else []
+        candidates += tag.find_all("table")
+        tables.extend(table for table in candidates if table.find_parent("table") is None)
+    return tables
 
 
 # ---------------------------------------------------------------------------
@@ -426,7 +443,7 @@ def _parse_tables(soup: BeautifulSoup, paper_id: str) -> List[dict]:
 
     top_level_tables = [
         fig for fig in soup.find_all("figure", class_="ltx_table")
-        if "ltx_figure_panel" not in fig.get("class", [])
+        if not {"ltx_figure_panel", "ltx_table_panel"} & set(fig.get("class", []))
     ]
 
     for table_fig in top_level_tables:
@@ -434,7 +451,10 @@ def _parse_tables(soup: BeautifulSoup, paper_id: str) -> List[dict]:
 
         for figcaption_tag, content_tags in _split_into_logical_groups(table_fig):
             sequential_idx += 1
-            outer_caption, outer_footnotes = extract_text_and_footnotes(figcaption_tag)
+            outer_caption, outer_footnotes = (
+                extract_text_and_footnotes(figcaption_tag)
+                if figcaption_tag is not None else ("", [])
+            )
 
             num_match = re.search(r"\bTable\s+(\d+)", outer_caption, re.IGNORECASE)
             table_num = int(num_match.group(1)) if num_match else sequential_idx
@@ -447,15 +467,88 @@ def _parse_tables(soup: BeautifulSoup, paper_id: str) -> List[dict]:
                     table_num, wrapper_html_id, paper_id,
                 )
             else:
-                table_tag = _find_direct_table(content_tags)
-                if table_tag is None:
+                tables = _find_top_level_tables(content_tags)
+                if not tables:
                     continue
-                _append_single_record(
-                    records, table_tag, outer_caption, outer_footnotes,
-                    table_num, wrapper_html_id, paper_id,
-                )
+                if len(tables) == 1:
+                    _append_single_record(
+                        records, tables[0], outer_caption, outer_footnotes,
+                        table_num, wrapper_html_id, paper_id,
+                    )
+                else:
+                    _append_sibling_records(
+                        records, tables, outer_caption, outer_footnotes,
+                        table_num, wrapper_html_id, paper_id,
+                    )
 
     return records
+
+
+def _append_sibling_records(
+    records: List[dict],
+    tables: List[Tag],
+    caption: str,
+    footnotes: List[dict],
+    table_num: int,
+    html_id: str,
+    paper_id: str,
+) -> None:
+    """Split labelled siblings; otherwise keep their rows in one table."""
+    labels = _split_subcaptions(caption)
+    if len(labels) == len(tables):
+        for table, (letter, sub_caption) in zip(tables, labels):
+            cells, n_rows, n_cols, cell_footnotes = extract_table_grid(table)
+            records.append({
+                "table_id": f"{paper_id}_T{table_num}{letter}",
+                "html_id": table.get("id", html_id),
+                "table_num": table_num,
+                "sub_id": letter,
+                "caption": caption,
+                "sub_caption": sub_caption,
+                "n_rows": n_rows,
+                "n_cols": n_cols,
+                "cells": cells,
+                "footnotes": _dedupe_footnotes(footnotes + cell_footnotes),
+            })
+        return
+
+    _append_merged_record(
+        records, tables, caption, footnotes, table_num, html_id, paper_id,
+    )
+
+
+def _append_merged_record(
+    records: List[dict],
+    tables: List[Tag],
+    caption: str,
+    footnotes: List[dict],
+    table_num: int,
+    html_id: str,
+    paper_id: str,
+) -> None:
+    """Append one logical table with grids stacked in document order."""
+    if not tables:
+        return
+    cells, notes = [], list(footnotes)
+    row_offset, width = 0, 0
+    for table in tables:
+        part, n_rows, n_cols, cell_footnotes = extract_table_grid(table)
+        cells.extend(dict(cell, row=cell["row"] + row_offset) for cell in part)
+        notes.extend(cell_footnotes)
+        row_offset += n_rows
+        width = max(width, n_cols)
+    records.append({
+        "table_id": f"{paper_id}_T{table_num}",
+        "html_id": html_id,
+        "table_num": table_num,
+        "sub_id": None,
+        "caption": caption,
+        "sub_caption": None,
+        "n_rows": row_offset,
+        "n_cols": width,
+        "cells": cells,
+        "footnotes": _dedupe_footnotes(notes),
+    })
 
 
 def _append_panel_records(
@@ -467,7 +560,7 @@ def _append_panel_records(
     wrapper_html_id: str,
     paper_id: str,
 ) -> None:
-    """Build and append one record per sub-panel of a multi-part table."""
+    """Split explicitly labelled panels; otherwise merge their table grids."""
     panel_captions = []
     panel_footnotes_list = []
     for panel in panels:
@@ -475,46 +568,42 @@ def _append_panel_records(
         panel_captions.append(sub_cap)
         panel_footnotes_list.append(sub_fns)
 
-    if all(c == "" for c in panel_captions):
-        sub_parts = _split_subcaptions(outer_caption)
-        while len(sub_parts) < len(panels):
-            sub_parts.append(("", ""))
-        panel_captions = [text for _, text in sub_parts[: len(panels)]]
-        panel_sub_ids = [letter for letter, _ in sub_parts[: len(panels)]]
-        for i, (label, _) in enumerate(sub_parts):
-            if not label:
-                panel_sub_ids[i] = chr(ord("a") + i)
-    else:
-        panel_sub_ids = []
-        for sub in panel_captions:
-            sub_match = re.search(r"\(([a-z])\)", sub, re.IGNORECASE)
-            panel_sub_ids.append(sub_match.group(1).lower() if sub_match else None)
-        for i, sid in enumerate(panel_sub_ids):
-            if sid is None:
-                panel_sub_ids[i] = chr(ord("a") + i)
+    panel_sub_ids = []
+    outer_parts = _split_subcaptions(outer_caption)
+    for idx, caption in enumerate(panel_captions):
+        match = re.search(r"\(([a-z])\)", caption, re.IGNORECASE)
+        sub_id = match.group(1).lower() if match else None
+        # Only map outer labels by position when every panel is accounted for.
+        if sub_id is None and len(outer_parts) == len(panels):
+            sub_id, sub_caption = outer_parts[idx]
+            if not caption:
+                panel_captions[idx] = sub_caption
+        panel_sub_ids.append(sub_id)
+
+    if not all(panel_sub_ids) or len(set(panel_sub_ids)) != len(panels):
+        footnotes = list(outer_footnotes)
+        for notes in panel_footnotes_list:
+            footnotes.extend(notes)
+        _append_merged_record(
+            records, _find_top_level_tables(panels), outer_caption, footnotes,
+            table_num, wrapper_html_id, paper_id,
+        )
+        return
 
     for idx, panel in enumerate(panels):
-        table_tag = panel.find("table")
-        if table_tag is None:
+        tables = _find_top_level_tables([panel])
+        if not tables:
             continue
-        cells, n_rows, n_cols, cell_footnotes = extract_table_grid(table_tag)
-        sub_id      = panel_sub_ids[idx] if idx < len(panel_sub_ids) else chr(ord("a") + idx)
-        sub_caption = panel_captions[idx] if idx < len(panel_captions) else ""
-        fns = list(outer_footnotes)
-        fns.extend(panel_footnotes_list[idx] if idx < len(panel_footnotes_list) else [])
-        fns.extend(cell_footnotes)
-
-        records.append({
+        sub_id = panel_sub_ids[idx]
+        _append_merged_record(
+            records, tables, outer_caption,
+            outer_footnotes + panel_footnotes_list[idx],
+            table_num, panel.get("id", wrapper_html_id), paper_id,
+        )
+        records[-1].update({
             "table_id":    f"{paper_id}_T{table_num}{sub_id}",
-            "html_id":     panel.get("id", wrapper_html_id),
-            "table_num":   table_num,
             "sub_id":      sub_id,
-            "caption":     outer_caption,
-            "sub_caption": sub_caption,
-            "n_rows":      n_rows,
-            "n_cols":      n_cols,
-            "cells":       cells,
-            "footnotes":   _dedupe_footnotes(fns),
+            "sub_caption": panel_captions[idx],
         })
 
 
@@ -595,12 +684,13 @@ def _parse_table_references(soup: BeautifulSoup) -> dict:
 
     top_level_tables = [
         fig for fig in soup.find_all("figure", class_="ltx_table")
-        if "ltx_figure_panel" not in fig.get("class", [])
+        if not {"ltx_figure_panel", "ltx_table_panel"} & set(fig.get("class", []))
     ]
     for table_fig in top_level_tables:
         for figcaption_tag, _ in _split_into_logical_groups(table_fig):
             sequential_idx += 1
-            caption, _ = extract_text_and_footnotes(figcaption_tag)
+            caption = (extract_text_and_footnotes(figcaption_tag)[0]
+                       if figcaption_tag is not None else "")
             m = _CAPTION_LABEL_RE.search(caption)
             if m:
                 prefix = (m.group(1) or "").rstrip(".")
