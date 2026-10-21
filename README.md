@@ -163,6 +163,3 @@ conda activate llm2vecenv
 ## Purpose
 
 To provide the figure and table retrieval foundation for a multimodal scientific discovery system — a RAG pipeline that routes natural-language queries across text, table, and image modalities and returns grounded, attributable answers.
-ENDOFFILE
-
-
