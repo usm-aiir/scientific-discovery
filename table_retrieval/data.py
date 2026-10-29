@@ -11,6 +11,24 @@ from pathlib import Path
 # Historical inspection scripts use this path; live retrieval reads configuration.
 DATA = Path("arxiv_data/SIGIRSciDis/tableGen/table_query_output")
 
+# Both experiment stages use this source unless another directory is supplied.
+DEFAULT_DATA_DIR = Path('/mnt/netstore1_home/behrooz.mansouri/SciDis/tableGen/table_query_output_v2')
+RESULTS_DIR = Path(__file__).resolve().parents[1] / 'results'
+
+
+def table_split_paths(data_dir=DEFAULT_DATA_DIR, split='val'):
+    """Find the original v2 questions, table judgments, and matched-cell labels."""
+    if split not in ('train', 'val', 'test'):
+        raise ValueError('Choose split train, val or test.')
+    data_dir = Path(data_dir).resolve()
+    suffix = '.INSTRUCTOR_ONLY' if split == 'test' else ''
+    title = split.title()
+    return {
+        'queries': data_dir / f'{title}.json',
+        'qrels': data_dir / f'{title}_table_qrels{suffix}.tsv',
+        'cells': data_dir / f'{title}_matched_cells{suffix}.tsv',
+    }
+
 
 def load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))

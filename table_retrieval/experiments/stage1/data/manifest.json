@@ -1,8 +1,0 @@
-{
-  "corpus_sha256": "ac0fb9856f9db94327941c52af0712b2cae387d1cc9ea778a1020b0d64aab8c6",
-  "files": {
-    "val.json": "d2c4f705dc8f5a299e2f5bffb2606f186b471adc52d0d134030566b76ecaa3dc",
-    "test.json": "73b861467118e037402b9c9e513a82c095f32cd7946be0ae85e3eb29f88711a0",
-    "val_qrels.tsv": "4dc11e52c67cf9e939aae7b79dd2504d5163da57ba166a1cd8a8c326d79159c8"
-  }
-}

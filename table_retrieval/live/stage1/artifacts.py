@@ -48,7 +48,7 @@ def load_search_corpus(index):
 # Loads the selected Stage 1 retriever from the configured index folder.
 def load_search_backend(name, index, device='cpu'):
     index = Path(index)
-    if name in ('bm25_full', 'bm25_matched'):
+    if name == 'bm25_matched':
         from .retrievers.bm25 import load_lexical
         manifest = load_json(index / 'prepared.json')
         return load_lexical(index / f'{name}.npz', manifest), manifest

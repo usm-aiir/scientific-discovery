@@ -1,12 +1,11 @@
 # Runs BM25, BGE, or fused Stage 1 table retrieval.
-# bm25_full     : BM25 over the full prepared table text
 # bm25_matched  : BM25 over the same truncated text window BGE sees
 
 
 DEFAULT_TABLE_TOP_K = 5 # Default number of Stage 1 tables to return.
 
 # Defines which backend resources each retrieval mode needs.
-BACKENDS = {'fusion': ['bm25_matched', 'bge'], 'bm25': ['bm25_full'], 'bge': ['bge']}
+BACKENDS = {'fusion': ['bm25_matched', 'bge'], 'bm25': ['bm25_matched'], 'bge': ['bge']}
 
 # Runs the selected retrieval method and returns ranked table IDs with scores.
 def search_query(query, model, resources, top_k=DEFAULT_TABLE_TOP_K):
@@ -14,7 +13,7 @@ def search_query(query, model, resources, top_k=DEFAULT_TABLE_TOP_K):
     if not query.strip() or top_k < 1:
         raise ValueError('Enter a nonempty query and a positive top-k')
     if model == 'bm25':
-        return resources['bm25_full'][0].search(query, top_k)
+        return resources['bm25_matched'][0].search(query, top_k)
     if model in ('bge', 'fusion'):
         from .retrievers.bge import search_texts
         if model == 'bge':

@@ -29,5 +29,4 @@ namespaces = true
 
 [tool.setuptools.package-data]
 table_retrieval = ["config.example.json"]
-"table_retrieval.experiments.stage1" = ["data/val.json", "data/test.json", "data/val_qrels.tsv", "data/manifest.json"]
 "table_retrieval.experiments.stage2_bge" = ["config.json", "data/*.json"]
