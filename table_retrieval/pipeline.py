@@ -18,9 +18,10 @@ class EvidencePipeline:
 # Loads the Stage 1 index and Stage 2 checkpoint and builds the full pipeline.
     @classmethod
     def from_artifacts(cls, stage1_index, checkpoint, device='auto', *, stage2_max_length,
-                       table_source_dir=None):
+                       table_source_dir=None, stage1_rerank=False):
         device = resolve_device(device)
-        retrieval = RetrievalPipeline.from_index(stage1_index, device)
+        retrieval_options = {'rerank': True} if stage1_rerank else {}
+        retrieval = RetrievalPipeline.from_index(stage1_index, device, **retrieval_options)
         options = {'table_source_dir': table_source_dir} if table_source_dir is not None else {}
         cells = create_pipeline(checkpoint, device, max_length=stage2_max_length, **options)
         return cls(retrieval, cells)

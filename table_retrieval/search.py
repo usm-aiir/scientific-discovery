@@ -14,6 +14,7 @@ _FIELDS = {
     'stage1_index', 'stage2_checkpoint', 'stage2_max_length', 'device',
     'table_top_k', 'cell_top_k', 'table_source_dir',
 }
+_OPTIONAL_FIELDS = {'stage1_rerank'}
 
 # Loads and validates runtime settings and resolves configured file paths.
 def load_config(path=DEFAULT_CONFIG):
@@ -21,11 +22,18 @@ def load_config(path=DEFAULT_CONFIG):
         path = DEFAULT_CONFIG.with_name('config.example.json')
     path = Path(path).expanduser().resolve()
     values = load_json(path)
-    if not isinstance(values, dict) or set(values) != _FIELDS:
-        raise ValueError(f'Config must contain exactly: {", ".join(sorted(_FIELDS))}')
+    if (not isinstance(values, dict) or not _FIELDS <= set(values) or
+            set(values) - _FIELDS - _OPTIONAL_FIELDS):
+        raise ValueError(f'Config requires: {", ".join(sorted(_FIELDS))}; optional: stage1_rerank')
+    if type(values.get('stage1_rerank', False)) is not bool:
+        raise ValueError('stage1_rerank must be a boolean.')
     for key in ('table_top_k', 'cell_top_k', 'stage2_max_length'):
         if type(values[key]) is not int or values[key] < 1:
             raise ValueError(f'{key} must be a positive integer.')
+    if values.get('stage1_rerank', False):
+        from .live.stage1.reranker import CANDIDATE_COUNT
+        if values['table_top_k'] > CANDIDATE_COUNT:
+            raise ValueError(f'Reranked table_top_k cannot exceed {CANDIDATE_COUNT}.')
     if not isinstance(values['device'], str) or not values['device'].strip():
         raise ValueError('device must be a nonempty string.')
     for key in ('stage1_index', 'stage2_checkpoint', 'table_source_dir'):
@@ -39,12 +47,14 @@ def load_config(path=DEFAULT_CONFIG):
 # Builds the full Stage 1 and Stage 2 retrieval pipeline from config.
 def build_pipeline(config):
     """Initialize both models once from the configured, completed artifacts."""
+    options = {'stage1_rerank': True} if config.get('stage1_rerank', False) else {}
     return EvidencePipeline.from_artifacts(
         stage1_index=config['stage1_index'],
         checkpoint=config['stage2_checkpoint'],
         stage2_max_length=config['stage2_max_length'],
         device=config['device'],
         table_source_dir=config['table_source_dir'],
+        **options,
     )
 
 # Runs one query through the configured retrieval pipeline and prints the result.

@@ -1,5 +1,6 @@
 {
   "stage1_index": "../results/stage1/index",
+  "stage1_rerank": false,
   "stage2_checkpoint": "BAAI/bge-m3",
   "stage2_max_length": 512,
   "device": "cpu",
