@@ -1,80 +1,75 @@
-# Stage 1: table retrieval evaluation
+# Stage 1: Table retrieval
 
-## Purpose
+Compare three methods for finding tables relevant to a question:
 
-Reproduce Stage 1 table retrieval evaluation using the live retrievers.
+- **BM25:** keyword search over the table text included in BGE inputs.
+- **BGE-M3:** similarity search using pretrained BGE embeddings.
+- **Fusion:** combines BM25 and BGE results using their rank positions.
 
-## Method
-
-- BM25: lexical retrieval, with full-text and BGE-token-matched variants.
-- BGE-M3: dense retrieval using the pretrained `BAAI/bge-m3` model.
-- Equal-weight reciprocal rank fusion: combine token-matched BM25 and BGE ranks.
-
-The fixed recipe uses model revision
-`5617a9f61b028005a4858fdac845db406aefb181`, 2,048-token table inputs,
-100 candidates per retriever and fusion constant 60. No model is trained here.
+The index uses 2,048-token table inputs, 100 candidates per retriever, and
+reciprocal rank fusion with constant 60.
+The retrieval implementations are shared with `live/stage1/`.
 
 ## Data
 
-| File | Contents |
-|---|---|
-| `data/val.json` | 250 validation questions. |
-| `data/test.json` | 250 test questions. |
-| `data/val_qrels.tsv` | Validation table judgments: query ID, `0`, table ID, relevance grade. |
-| `data/manifest.json` | Data checksums and the expected full-corpus hash. |
+All commands read Behrooz's v2 dataset by default:
 
-The full `Corpus.json` is external (about 237 MiB). Its expected local location is
-`arxiv_data/SIGIRSciDis/tableGen/table_query_output/Corpus.json`; pass your actual
-path with `--corpus`. A public download location is not documented, so obtain the
-corpus from the dataset owner before building an index.
-
-Instructor-only test qrels are private and are not distributed. Obtain an
-approved file from the dataset owner and supply it with `--qrels`. Do not use
-validation judgments or question metadata as replacement test labels.
-
-## Commands
-
-Complete the shared [setup](../../README.md#setup), then run from the repository root:
-
-```bash
-python -m table_retrieval.experiments.stage1.build_index \
-  --corpus /path/to/Corpus.json --device cuda:0
-
-python -m table_retrieval.experiments.stage1.evaluate --split val --device cuda:0
-
-python -m table_retrieval.experiments.stage1.evaluate --split test \
-  --qrels /path/to/approved_test_qrels.tsv --device cuda:0
+```text
+/mnt/netstore1_home/behrooz.mansouri/SciDis/tableGen/table_query_output_v2/
 ```
 
-Use `--device cpu` without a compatible GPU. The build writes
-`results/stage1/index/`; both evaluations use that same index without rebuilding.
-The build needs a new or empty output directory. Evaluation writes rankings and
-metrics to `results/stage1/val/` and `results/stage1/test/`.
+Indexing reads `Corpus.json`. Evaluation reads `Val.json` or `Test.json` and
+its table relevance labels: `Val_table_qrels.tsv` or
+`Test_table_qrels.INSTRUCTOR_ONLY.tsv`. Each evaluation split has 250 questions.
 
-Use `--output` for another output directory and evaluation's `--index` for a
-different completed index. Changed inputs or settings require a new output path.
-These generated files stay under the gitignored `results/` directory.
+## Run
 
-To rescore saved rankings without running the models:
+For individual Python commands, activate the environment from the
+[experiment setup](../README.md#setup), then run from the repository root:
 
 ```bash
-python -m table_retrieval.experiments.stage1.evaluate --split val \
-  --rankings /path/to/saved_runs --output results/stage1/rescored
+# Build the index once.
+python -m table_retrieval.experiments.stage1.build_index
+
+# Evaluate validation, then test, using that index.
+python -m table_retrieval.experiments.stage1.evaluate
+python -m table_retrieval.experiments.stage1.evaluate --split test
+```
+
+The index goes to `results/stage1/index/`. Rankings and metrics go to
+`results/stage1/val/` and `results/stage1/test/`.
+Each evaluation saves `fusion.run` in its split's folder by default, where
+Stage 2 reads it automatically.
+
+## Options
+
+| Option | Purpose |
+|---|---|
+| `--data-dir` | Read another dataset folder. |
+| `--corpus` | Use another corpus file when building the index. |
+| `--queries`, `--qrels` | Use other questions or table labels for evaluation. |
+| `--index` | Evaluate a different completed index. |
+| `--output` | Save to another output folder. |
+| `--model` | Choose `bm25`, `bge`, or `fusion` (default). |
+
+Individual file options override `--data-dir`. Use `--device cpu` or
+`--device cuda:0` to select a device; the default chooses automatically.
+Build into a new or empty folder, and use new output folders when changing inputs
+or settings.
+
+To score saved rankings without running retrieval again:
+
+```bash
+python -m table_retrieval.experiments.stage1.evaluate \
+  --rankings results/stage1/val --output results/stage1/rescored
 ```
 
 ## Metrics
 
-`metrics.py` reports per-query metrics averaged over questions with positive
-judgments:
+Each evaluation saves one `metrics.json` containing overall scores for each
+retrieval method. Per-query scores are omitted; the `.run` files retain the rankings.
 
-- Precision@k: relevant tables in the first k results, divided by k.
-- Recall@k: relevant tables in the first k results, divided by all relevant tables.
-- nDCG@k: binary relevance with logarithmic rank discounts and an ideal ranking.
-
-Grades >= 1 count as relevant; higher grades receive no extra weight. Unjudged
-tables count as non-gold. Missing query results score zero. Questions without
-positive judgments are reported separately and excluded from the averages.
-
-The default cutoff is 10; use `--k 5` for Top-5 metrics. The live system returns
-Top-5 tables. This table benchmark uses different questions and judgments from
-the Stage 2 cell benchmark.
+Precision, Recall, and nDCG use the first 10 results by default; change this with
+`--k`. **MRR** averages `1 / rank` of the first relevant table across the full
+saved ranking, with zero when none is found. Questions without positive relevance
+labels are excluded from the averages and listed separately.

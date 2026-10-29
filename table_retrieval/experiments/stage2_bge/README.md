@@ -1,126 +1,79 @@
-# Stage 2: Structural BGE cell retrieval
+# Stage 2: Cell retrieval
 
-## Purpose
-
-Reproduce training and evaluation of the Structural BGE cell retriever.
-It ranks candidate cells from Stage 1's Top-5 tables and returns the global
-Top-5 evidence cells.
-
-## Input
-
-Evaluation uses frozen Stage 1 tables and candidate cells. Each cell is formatted
-with its value, labels and recovered structural context, then scored against the
-question using BGE cosine similarity. The experiment uses the live cell formatter.
-
-The snapshots include the tables and recovered context, so this experiment does
-not need to rebuild Stage 1 or load the original HTML. Keep the candidate pools,
-cell IDs and coordinates unchanged.
+Rank evidence cells within Stage 1's Top-5 tables using BGE-M3. Each cell's text
+includes its value and structural context, such as row labels and column headers.
+Training, evaluation, and `live/stage2/` use the same cell formatter and BGE encoder.
 
 ## Data
 
-| File | Contents |
+Training and evaluation read Behrooz's v2 dataset by default:
+
+```text
+/mnt/netstore1_home/behrooz.mansouri/SciDis/tableGen/table_query_output_v2/
+```
+
+The loader reads `Corpus.json`, the question split (`Train.json`, `Val.json`, or
+`Test.json`), and its table relevance labels and matched-cell TSVs. Test label
+filenames include `.INSTRUCTOR_ONLY`; the loader selects them automatically.
+
+First run [Stage 1](../stage1/README.md) to produce the candidate table rankings.
+Use rankings generated from the same dataset, and keep the Stage 1 output folder
+intact. Stage 2 reads these saved rankings.
+
+## Train
+
+For individual Python commands, activate the environment from the
+[experiment setup](../README.md#setup), then run from the repository root:
+
+```bash
+python -m table_retrieval.experiments.stage2_bge.train
+```
+
+Training reads `results/stage1/val/fusion.run` and saves to
+`results/stage2_bge/train/` by default. Use `--val-stage1-run` or `--output` to
+choose other paths.
+
+Training settings are in [config.json](config.json). Positive cells compete with
+four negatives sampled from that question's explicitly irrelevant training
+tables. Questions without those negative tables are excluded and recorded.
+
+The model is selected by validation nDCG@5 on the saved Stage 1 candidates.
+
+## Evaluate
+
+Evaluate pretrained BGE-M3 on the saved validation tables:
+
+```bash
+python -m table_retrieval.experiments.stage2_bge.evaluate
+```
+
+This reads `results/stage1/val/fusion.run` and saves to
+`results/stage2_bge/val_pretrained/`. To evaluate the selected training checkpoint:
+
+```bash
+python -m table_retrieval.experiments.stage2_bge.evaluate \
+  --checkpoint results/stage2_bge/train
+```
+
+Checkpoint results go to `results/stage2_bge/val_trained/` by default.
+Adding `--split test` selects `results/stage1/test/fusion.run` and the corresponding
+`test_pretrained/` or `test_trained/` output folder automatically.
+`--checkpoint` accepts a training run folder or an individual checkpoint.
+Validation and evaluation use float32 weights and 512-token inputs.
+
+## Options
+
+| Option | Purpose |
 |---|---|
-| `data/train.json` | 1,223 query/table examples with 2,829 positive cells. |
-| `data/val.json` | 122 examples grouped into 93 validation questions. |
-| `data/test.json` | 122 examples grouped into 91 test questions. |
-| `data/val_candidates.json` | Frozen validation Top-5 tables, cells and structural context. |
-| `data/test_candidates.json` | Frozen test Top-5 tables, cells and structural context. |
-| `data/manifest.json` | Data checksums and expected training-pair counts. |
+| `--data-dir` | Read another v2 dataset folder. |
+| `--stage1-run` | Evaluate another saved Stage 1 ranking. |
+| `--val-stage1-run` | Train using another saved validation ranking. |
+| `--output` | Save to another new folder. |
+| `--config` | Use another training settings file. |
+| `--check-data` | Check training inputs without loading a model or writing outputs. |
+| `--device cpu` or `--device cuda:0` | Select a device; default is automatic. |
+| `--k 5` | Report evaluation metrics at Top-5 only. |
 
-Gold evidence labels, coordinates and values are included in the annotation
-files. `dataset.py` validates the fixed files and prepares model inputs; it does
-not reshuffle the splits. These are the project's existing annotations, not a
-newly human-verified benchmark.
-
-## Training
-
-Complete the shared [setup](../../README.md#setup). Run all commands from the
-repository root:
-
-```bash
-python -m table_retrieval.experiments.stage2_bge.train --device cuda:0
-```
-
-Training downloads the pinned base BGE-M3 model and follows [config.json](config.json):
-seed 42, three epochs, AdamW at 1e-5, batch size one, accumulation four,
-four negatives per positive, temperature 0.02 and 512-token inputs.
-The fixed recipe trains on table-aware cell text; evaluation adds recovered
-structural context.
-
-Validation selects the best epoch using full-ranking binary nDCG within each
-annotated table. Test labels are not used for training or checkpoint selection.
-Improving checkpoints and `training.json`, which identifies the selected epoch,
-are written to `results/stage2_bge/train/`.
-
-Use `--device cpu` without a compatible GPU, although training will be slower.
-Use `--output /path/to/new_run` for another run. Existing outputs are protected.
-
-## Evaluation
-
-Evaluate the selected checkpoint on both fixed splits:
-
-```bash
-python -m table_retrieval.experiments.stage2_bge.evaluate \
-  --checkpoint results/stage2_bge/train --split val --device cpu \
-  --output results/stage2_bge/val
-
-python -m table_retrieval.experiments.stage2_bge.evaluate \
-  --checkpoint results/stage2_bge/train --split test --device cpu \
-  --output results/stage2_bge/test
-```
-
-`--checkpoint` accepts a training run folder or a checkpoint directory. To score
-the exact reported weights, replace `results/stage2_bge/train` with
-`experiment2/checkpoint`. Evaluation uses float32, 512-token inputs and 32-cell
-encoding batches. `--device cuda:0` also supports float32 experiment evaluation.
-
-Evaluation writes `predictions.json` and `metrics.json`. Choose a new `--output`
-directory for each run. Checkpoints and outputs belong under gitignored `results/`.
-Rescore saved predictions without loading a model:
-
-```bash
-python -m table_retrieval.experiments.stage2_bge.evaluate --split test \
-  --predictions results/stage2_bge/test/predictions.json
-```
-
-## Metrics
-
-Reported test results use all 91 questions and 333 annotated gold cells:
-
-| Metric | Test result |
-|---|---:|
-| Precision@5 | 23.08% |
-| Recall@5 | 31.53% |
-| F1@5 | 26.65% |
-| nDCG@5 | 47.59% |
-
-`metrics.py` pools cell counts for precision, recall and F1 (micro): 105 correct
-cells among 455 returned cells. Gold cells are identified by `(table_id, cell_id)`;
-unjudged cells count as non-gold.
-
-nDCG@5 uses binary relevance in descending BGE score order:
-
-```text
-DCG@5  = sum(rel(rank) / log2(rank + 1), rank = 1..5)
-IDCG@5 = sum(1 / log2(rank + 1), rank = 1..min(5, total annotated gold cells))
-nDCG@5 = mean(DCG@5 / IDCG@5 over all 91 test questions)
-```
-
-All questions count equally, including those with zero Top-5 hits. Recall and
-IDCG include gold cells missing from Stage 1; no availability filter is applied.
-Only 265 of the 333 test gold cells are in the frozen candidate pools.
-
-## Checkpoint
-
-The trained checkpoint is external and is not committed to Git. The expected
-checkpoint is `experiment2/checkpoint/`, relative to the repository root, with
-the selected epoch-3 weights. Its `model.safetensors` SHA-256 must be:
-
-```text
-47bab214c0ec63d676586ab0632af33a6915ca9d306d1a3b2eaf026b85433c48
-```
-
-Supply this checkpoint to reproduce the exact reported weights. Fresh training
-may produce different hashes or near-tie scores across hardware/software setups.
-The live [example config](../../config.example.json) points to this checkpoint
-and uses CPU float32 inference; the live CUDA selector uses float16 instead.
+Commands check that Stage 1 rankings and their metadata exist before loading the
+data or model. Missing inputs produce an error explaining which Stage 1 command
+to run. Existing output folders are preserved; use `--output` for a new run.
