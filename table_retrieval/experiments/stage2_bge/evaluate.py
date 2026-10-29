@@ -9,7 +9,7 @@ from table_retrieval.live.stage1.artifacts import resolve_device
 from table_retrieval.live.stage2.bge.model import BGECellSelector, DEFAULT_MODEL, DEFAULT_REVISION, resolve_checkpoint
 from table_retrieval.live.stage2.representation import build_structural_cells
 from .dataset import check_stage1_run, checkpoint_hashes, load_inputs
-from .metrics import score_queries
+from .metrics import score_queries, summarize_metrics
 
 
 def load_selector(checkpoint, device):
@@ -79,8 +79,9 @@ def run(data_dir=DEFAULT_DATA_DIR, stage1_run=None, output=None, *, split='val',
     write_json(output / 'predictions.json', {
         'schema_version': SCHEMA_VERSION, 'cell_coordinates': COORDINATES,
         'split': split, 'records': records})
-    write_json(output / 'metrics.json', metrics)
-    return metrics
+    summary = summarize_metrics(metrics)
+    write_json(output / 'metrics.json', summary)
+    return summary
 
 
 def main(argv=None):

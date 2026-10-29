@@ -1,16 +1,9 @@
-# Scores ranked evidence with micro precision/recall and mean binary nDCG.
+"""Score ranked cells with micro precision/recall, mean binary nDCG, and MRR."""
 import math
 
 
-# The ranking must be in descending model-score order, never sorted by cell ID.
 def ndcg_at_k(ranked, gold, k=5):
-    """Binary nDCG for one query with at least one annotated gold cell.
-
-    DCG@k = sum(1/log2(rank+1) for gold cells at score ranks 1..k).
-    IDCG@k = sum(1/log2(rank+1) for ranks 1..min(k, number of gold cells)).
-    Gold includes evidence outside the Stage 1 pool. Zero retrieved gold yields
-    zero, not exclusion. The caller averages all scorable queries equally.
-    """
+    """Use score order and include gold cells outside the Stage 1 candidate pool."""
     if not gold or k < 1:
         raise ValueError('nDCG requires nonempty gold and a positive cutoff.')
     dcg = sum(1 / math.log2(rank + 1) for rank, cell in enumerate(ranked[:k], 1) if cell in gold)
@@ -18,17 +11,31 @@ def ndcg_at_k(ranked, gold, k=5):
     return dcg / ideal
 
 
-# Gold includes cells absent from Stage 1, so the end-to-end denominator is preserved.
-def score_queries(records, k=5):
-    """Score the same queries/labels for micro P/R/F1 and mean binary nDCG@k.
+def score_tables(records):
+    """Measure the supplied Stage 1 tables against all gold evidence tables."""
+    hits = returned = gold_count = 0
+    ndcg = 0.0
+    for record in records:
+        gold = {cell[0] for cell in record['gold']}
+        tables = record['candidate_table_ids']
+        hits += len(set(tables) & gold)
+        returned += len(tables)
+        gold_count += len(gold)
+        ideal = sum(1 / math.log2(i + 2) for i in range(min(len(tables), len(gold))))
+        ndcg += sum(1 / math.log2(i + 2) for i, table in enumerate(tables) if table in gold) / ideal
+    return {
+        'table_precision@5': hits / returned,
+        'table_recall@5': hits / gold_count,
+        'table_ndcg@5': ndcg / len(records),
+    }
 
-    Every supplied query is included, including zero-hit queries. Each query
-    must have gold labels; fixed test evaluation validates all 91 queries first.
-    """
+
+def score_queries(records, k=5):
+    """Include all questions and unavailable gold; MRR uses the full ranking."""
     if not records or k < 1:
         raise ValueError('Scoring requires queries and a positive cutoff.')
-    hits = returned = gold_count = available = table_hits = table_gold = table_count = 0
-    ndcg = table_ndcg = mrr = 0.0
+    hits = returned = gold_count = available = 0
+    ndcg = mrr = 0.0
     hits_at = {1: 0, 3: 0, 5: 0}
     for record in records:
         gold = {tuple(item) for item in record['gold']}
@@ -41,35 +48,27 @@ def score_queries(records, k=5):
         available += len(set(ranked) & gold)
         for cutoff in hits_at:
             hits_at[cutoff] += len(set(ranked[:cutoff]) & gold)
-        ranks = [rank for rank, item in enumerate(ranked, 1) if item in gold]
-        mrr += 1 / ranks[0] if ranks else 0
+        mrr += next((1 / rank for rank, item in enumerate(ranked, 1) if item in gold), 0.0)
         ndcg += ndcg_at_k(ranked, gold, k)
-        gold_tables = {item[0] for item in gold}
-        tables = record['candidate_table_ids']
-        table_hits += len(set(tables) & gold_tables)
-        table_gold += len(gold_tables)
-        table_count += len(tables)
-        table_ideal = sum(1 / math.log2(i + 2) for i in range(min(len(tables), len(gold_tables))))
-        table_ndcg += sum(1 / math.log2(i + 2) for i, table in enumerate(tables)
-                          if table in gold_tables) / table_ideal
     precision = hits / returned if returned else 0.0
     recall = hits / gold_count
-    return {'queries': len(records), 'gold_cells': gold_count, 'correct_cells': hits,
-            'returned_cells': returned, f'precision@{k}': precision, f'recall@{k}': recall,
-            f'f1@{k}': 2 * precision * recall / (precision + recall) if precision + recall else 0,
-            f'ndcg@{k}': ndcg / len(records), 'mrr': mrr / len(records),
-            'recall_by_cutoff': {str(cutoff): value / gold_count for cutoff, value in hits_at.items()},
-            'stage1': {'gold_cell_coverage': available / gold_count,
-                       'table_precision@5': table_hits / table_count,
-                       'table_recall@5': table_hits / table_gold,
-                       'table_ndcg@5': table_ndcg / len(records)}}
+    return {
+        'queries': len(records), 'gold_cells': gold_count, 'correct_cells': hits,
+        'returned_cells': returned, f'precision@{k}': precision, f'recall@{k}': recall,
+        f'f1@{k}': 2 * precision * recall / (precision + recall) if precision + recall else 0,
+        f'ndcg@{k}': ndcg / len(records), 'mrr': mrr / len(records),
+        'recall_by_cutoff': {str(cutoff): value / gold_count for cutoff, value in hits_at.items()},
+        'stage1': {'gold_cell_coverage': available / gold_count, **score_tables(records)},
+    }
 
 
-# Epoch selection uses full-ranking nDCG within each supplied validation table.
-def validation_ndcg(rankings):
-    values = []
-    for ranked, gold in rankings:
-        ideal = sum(1 / math.log2(i + 2) for i in range(len(gold)))
-        dcg = sum(1 / math.log2(i + 2) for i, cell_id in enumerate(ranked) if cell_id in gold)
-        values.append(dcg / ideal)
-    return sum(values) / len(values)
+def summarize_metrics(scores):
+    """Save shared counts and MRR once, with a small row for each cutoff."""
+    first = next(iter(scores.values()))
+    summary = {key: first[key] for key in ('queries', 'gold_cells', 'mrr', 'stage1')}
+    summary['cutoffs'] = {}
+    for cutoff, values in scores.items():
+        row = {name: values[f'{name}@{cutoff}'] for name in ('precision', 'recall', 'f1', 'ndcg')}
+        row.update(correct_cells=values['correct_cells'], returned_cells=values['returned_cells'])
+        summary['cutoffs'][str(cutoff)] = row
+    return summary

@@ -185,7 +185,7 @@ def run(index, split='val', *, qrels=None, queries=None, output=None,
     reports = {}
     for name in RUNS[model]:
         reports[name] = evaluate(source / f'{name}.run', qrels, query_ids, k=k)
-        write_json(output / f'{name}.metrics.json', reports[name])
+    write_json(output / 'metrics.json', reports)
     return reports
 
 
