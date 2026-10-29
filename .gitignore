@@ -47,6 +47,8 @@ local_docs/
 /table_retrieval/experiments/*
 !/table_retrieval/experiments/stage1/
 !/table_retrieval/experiments/stage2_bge/
+!/table_retrieval/experiments/README.md
+!/table_retrieval/experiments/scripts/
 /table_retrieval/config.json
 # Test judgments require explicit publication approval and remain external.
 *INSTRUCTOR_ONLY*
