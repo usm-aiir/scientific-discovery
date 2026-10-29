@@ -85,8 +85,8 @@ def load_corpus(path):
     return corpus
 
 
-COORDINATES = 'zero-based Corpus.json rows[row][column], including header rows'
-SCHEMA_VERSION = '3.0'
+COORDINATES = 'one-based source r{row}c{column}; Corpus.json rows[row-1][column-1], including header rows'
+SCHEMA_VERSION = '4.0'
 
 # Represents a table passed from Stage 1 retrieval into Stage 2.
 @dataclass

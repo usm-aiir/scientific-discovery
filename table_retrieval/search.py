@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .data import load_json
 from .pipeline import EvidencePipeline
+from .live.stage2.bge.model import DEFAULT_MODEL
 
 # Local runtime settings; the example preserves the same defaults when none exists.
 DEFAULT_CONFIG = Path(__file__).with_name('config.json')
@@ -29,6 +30,8 @@ def load_config(path=DEFAULT_CONFIG):
         raise ValueError('device must be a nonempty string.')
     for key in ('stage1_index', 'stage2_checkpoint', 'table_source_dir'):
         value = values[key]
+        if key == 'stage2_checkpoint' and value == DEFAULT_MODEL:
+            continue
         if value is not None:
             values[key] = str((path.parent / value).resolve()) if not Path(value).is_absolute() else value
     return values

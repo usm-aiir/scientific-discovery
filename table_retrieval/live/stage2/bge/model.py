@@ -1,5 +1,8 @@
 # Loads the Stage 2 BGE model and uses it to rank candidate cells.
+from pathlib import Path
 
+from table_retrieval.data import load_json
+from table_retrieval.live.stage1.artifacts import resolve_device
 from table_retrieval.live.stage2.ranking import rank_scored_cells
 
 
@@ -8,6 +11,26 @@ DEFAULT_REVISION = '5617a9f61b028005a4858fdac845db406aefb181'
 DEFAULT_THRESHOLD = 0.5
 DEFAULT_BATCH_SIZE = 32
 MODEL_CACHE = None
+
+
+def resolve_checkpoint(checkpoint):
+    """Accept pretrained BGE-M3, a checkpoint, or a training run's selected epoch."""
+    if checkpoint == DEFAULT_MODEL:
+        return checkpoint
+    checkpoint = Path(checkpoint).expanduser().resolve()
+    if (checkpoint / 'training.json').is_file():
+        checkpoint = checkpoint / load_json(checkpoint / 'training.json')['checkpoint']
+    if not checkpoint.is_dir():
+        raise FileNotFoundError(f'Checkpoint directory not found: {checkpoint}')
+    return checkpoint
+
+
+def encode(model, tokenizer, texts, device, max_length):
+    """Shared normalized CLS encoding; gradients stay available during training."""
+    import torch
+    tokens = tokenizer(texts, padding=True, truncation=True, max_length=max_length, return_tensors='pt')
+    output = model(**{key: value.to(device) for key, value in tokens.items()})
+    return torch.nn.functional.normalize(output.last_hidden_state[:, 0].float(), dim=-1)
 
 
 class BGECellSelector:
@@ -28,7 +51,7 @@ class BGECellSelector:
         self.torch = torch
         if not isinstance(device, str) or not device.strip():
             raise ValueError('BGE device must be a nonempty string or "auto".')
-        requested = ('cuda:0' if torch.cuda.is_available() else 'cpu') if device == 'auto' else device
+        requested = resolve_device(device) if device == 'auto' else device
         try:
             parsed_device = torch.device(requested)
         except (RuntimeError, TypeError) as error:
@@ -39,15 +62,18 @@ class BGECellSelector:
             if parsed_device.index is not None and parsed_device.index >= torch.cuda.device_count():
                 raise RuntimeError(f'CUDA device does not exist: {requested}')
         self.device = str(parsed_device)
+        checkpoint = str(resolve_checkpoint(checkpoint))
         self.checkpoint = checkpoint
         self.batch_size = batch_size
         self.max_length = max_length
         revision = DEFAULT_REVISION if checkpoint == DEFAULT_MODEL else None
         options = dict(revision=revision, cache_dir=MODEL_CACHE)
-        dtype = torch.float16 if self.device.startswith('cuda') else torch.float32
+        if self.device.startswith('cuda'):
+            torch.backends.cuda.matmul.allow_tf32 = False
+            torch.backends.cudnn.allow_tf32 = False
         self.tokenizer = AutoTokenizer.from_pretrained(checkpoint, **options)
         self.model = AutoModel.from_pretrained(
-            checkpoint, torch_dtype=dtype, attn_implementation='eager', **options
+            checkpoint, torch_dtype=torch.float32, attn_implementation='eager', **options
         ).to(self.device).eval()
         self.revision = getattr(self.model.config, '_commit_hash', revision)
 
@@ -57,13 +83,7 @@ class BGECellSelector:
         with self.torch.inference_mode():
             for start in range(0, len(texts), self.batch_size):
                 batch = texts[start:start + self.batch_size]
-                inputs = self.tokenizer(
-                    batch, padding=True, truncation=True, max_length=self.max_length,
-                    return_tensors='pt')
-                output = self.model(**{key: value.to(self.device)
-                                      for key, value in inputs.items()})
-                vector = self.torch.nn.functional.normalize(
-                    output.last_hidden_state[:, 0].float(), dim=-1)
+                vector = encode(self.model, self.tokenizer, batch, self.device, self.max_length)
                 vectors.append(vector.cpu())
         result = self.torch.cat(vectors)
         if not self.torch.isfinite(result).all():

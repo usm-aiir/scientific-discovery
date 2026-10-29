@@ -1,6 +1,7 @@
 # Builds structural cells from Stage 1 tables and selects the global top Stage 2 cells.
 import logging
 from pathlib import Path
+from table_retrieval.data import COORDINATES
 from .representation import build_structural_cells, REPRESENTATION_VERSION
 from .source import load_table_sources
 
@@ -19,7 +20,8 @@ class BGECellRetrievalPipeline:
     """
     def __init__(self, selector, provenance=None, *, table_source_dir=None):
         self.selector = selector
-        self.provenance = dict(provenance or {}, cell_representation=REPRESENTATION_VERSION)
+        self.provenance = dict(provenance or {}, cell_representation=REPRESENTATION_VERSION,
+                               cell_coordinates=COORDINATES)
         self.table_source_dir = (Path(table_source_dir).expanduser().resolve()
                                  if table_source_dir is not None else None)
         if self.table_source_dir is not None and not self.table_source_dir.is_dir():

@@ -150,7 +150,8 @@ def recover_table(table_id, table, sources=(), html_path=None):
     original = make_cells(table_id, table)
     contexts = {}
     for cell in original:
-        row, column = cell["row"], cell["column"]
+        # Source-facing cell coordinates are one-based; list/span indices are not.
+        row, column = cell["row"] - 1, cell["column"] - 1
         headers = list(cell["header_path"])
         row_labels = []
         recovery = "original"
@@ -172,7 +173,7 @@ def recover_table(table_id, table, sources=(), html_path=None):
         }
     audit = {
         "table_id": table_id, "alignment": status, "header_boundary": boundary,
-        "body_start": first_body,
+        "body_start": first_body + 1 if first_body is not None else None,
         "html_path": str(html_path) if html_path else None,
         "html_sha256": digest(html_path) if html_path and html_path.is_file() else None,
         "source_table_index": alignment["source"]["index"] if alignment else None,

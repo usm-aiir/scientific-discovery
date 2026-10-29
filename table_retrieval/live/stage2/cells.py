@@ -98,7 +98,7 @@ def header_context(table):
 
 # Converts every non-empty table cell into a structured cell record for Stage 2.
 def make_cells(table_id, table):
-    """Create nonempty cell records without changing source row/column positions."""
+    """Create nonempty cells using source one-based rows, columns and rNcM IDs."""
     rows = table.get('rows')
     if not isinstance(rows, list) or not rows:
         raise ValueError('Table rows must be a nonempty list.')
@@ -123,9 +123,9 @@ def make_cells(table_id, table):
             representation = f'{row_label} | {" > ".join(header_path)} | {value}'
             cells.append({
                 'table_id': table_id,
-                'cell_id': f'r{row_index}:c{column_index}',
-                'row': row_index,
-                'column': column_index,
+                'cell_id': f'r{row_index + 1}c{column_index + 1}',
+                'row': row_index + 1,
+                'column': column_index + 1,
                 'value': raw_value,
                 'row_label': row_label,
                 'header_path': header_path,
