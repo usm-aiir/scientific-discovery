@@ -2,7 +2,7 @@
 import logging
 from pathlib import Path
 
-from ..data import Candidate, digest, load_json
+from table_retrieval.data import Candidate, digest, load_json
 from .artifacts import resolve_device, load_search_corpus, load_search_backend
 from .retrieval import BACKENDS, DEFAULT_TABLE_TOP_K, search_query
 

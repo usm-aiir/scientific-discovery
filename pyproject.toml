@@ -14,14 +14,15 @@ requires-python = ">=3.10"
 where = ["."]
 include = [
   "table_retrieval",
-  "table_retrieval.stage1*",
-  "table_retrieval.stage2*",
+  "table_retrieval.live*",
   "table_retrieval.experiments",
   "table_retrieval.experiments.stage1*",
   "table_retrieval.experiments.stage2_bge*",
 ]
 exclude = [
-  "table_retrieval.experiments.stage1.tests*",
+  "table_retrieval.live.*tests*",
+  "table_retrieval.experiments.*.tests*",
+  "table_retrieval.experiments.tests*",
   "table_retrieval.tests*",
 ]
 namespaces = true

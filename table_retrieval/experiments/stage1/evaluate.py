@@ -7,10 +7,10 @@ from pathlib import Path
 from tqdm.auto import tqdm
 
 from table_retrieval.data import check_id, digest, load_json, write_json
-from table_retrieval.stage1.artifacts import resolve_device
-from table_retrieval.stage1.fusion import fuse
-from table_retrieval.stage1.retrievers.bge import load_search_index, search_texts
-from table_retrieval.stage1.retrievers.bm25 import load_lexical
+from table_retrieval.live.stage1.artifacts import resolve_device
+from table_retrieval.live.stage1.fusion import fuse
+from table_retrieval.live.stage1.retrievers.bge import load_search_index, search_texts
+from table_retrieval.live.stage1.retrievers.bm25 import load_lexical
 from .metrics import evaluate
 
 HERE = Path(__file__).resolve().parent

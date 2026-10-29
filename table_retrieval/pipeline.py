@@ -3,9 +3,9 @@ from datetime import datetime, timezone
 from time import perf_counter
 
 from .data import SCHEMA_VERSION
-from .stage1.artifacts import resolve_device
-from .stage1.pipeline import RetrievalPipeline
-from .stage2.bge.pipeline import create_pipeline
+from .live.stage1.artifacts import resolve_device
+from .live.stage1.pipeline import RetrievalPipeline
+from .live.stage2.bge.pipeline import create_pipeline
 
 # Runs the complete retrieval pipeline from query to final evidence cells.
 class EvidencePipeline:

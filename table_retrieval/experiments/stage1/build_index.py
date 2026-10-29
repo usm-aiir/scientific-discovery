@@ -8,10 +8,10 @@ from tqdm.auto import tqdm
 from transformers import AutoConfig, AutoTokenizer
 
 from table_retrieval.data import check_id, digest, load_corpus, load_json, write_json
-from table_retrieval.stage1.artifacts import resolve_device
-from table_retrieval.stage1.retrievers.bge import encode, load_model
-from table_retrieval.stage1.retrievers.bm25 import BM25
-from table_retrieval.stage1.text import table_text
+from table_retrieval.live.stage1.artifacts import resolve_device
+from table_retrieval.live.stage1.retrievers.bge import encode, load_model
+from table_retrieval.live.stage1.retrievers.bm25 import BM25
+from table_retrieval.live.stage1.text import table_text
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_INDEX = ROOT / 'results/stage1/index'
@@ -33,7 +33,7 @@ def prepare_text_inputs(corpus, tokenizer, max_length):
 
 def prepare_tables(args):
     from transformers import AutoConfig, AutoTokenizer
-    from ...stage1.retrievers.bge import CACHE
+    from table_retrieval.live.stage1.retrievers.bge import CACHE
     if args.output.exists() and any(args.output.iterdir()):
         raise ValueError('prepare needs a new or empty output directory; inspect partial files or choose a new experiment')
     corpus = load_corpus(args.corpus)

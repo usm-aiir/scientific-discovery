@@ -37,8 +37,7 @@ outputs/
 local_docs/
 
 # Local correctness and regression tests.
-/table_retrieval/tests/
-/table_retrieval/experiments/stage1/tests/
+/table_retrieval/**/tests/
 /tests/
 
 # Historical model smoke tests remain local.

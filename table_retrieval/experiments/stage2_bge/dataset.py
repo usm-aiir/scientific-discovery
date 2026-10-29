@@ -5,8 +5,8 @@ from pathlib import Path
 import random
 
 from table_retrieval.data import digest, load_json
-from table_retrieval.stage2.cells import make_cells
-from table_retrieval.stage2.representation import structural_bge_text
+from table_retrieval.live.stage2.cells import make_cells
+from table_retrieval.live.stage2.representation import structural_bge_text
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / 'data'

@@ -3,7 +3,7 @@ from collections import Counter, defaultdict
 import math
 import re
 import numpy as np
-from ...data import check_id
+from table_retrieval.data import check_id
 
 # Converts text into lowercase tokens while keeping decimals and hyphenated words together.
 def tokenize(text):

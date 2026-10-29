@@ -1,6 +1,6 @@
 # Loads the Stage 2 BGE model and uses it to rank candidate cells.
 
-from table_retrieval.stage2.ranking import rank_scored_cells
+from table_retrieval.live.stage2.ranking import rank_scored_cells
 
 
 DEFAULT_MODEL = 'BAAI/bge-m3'

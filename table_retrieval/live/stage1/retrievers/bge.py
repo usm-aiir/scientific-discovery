@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 from transformers import AutoModel, AutoTokenizer
-from ...data import digest, load_json
+from table_retrieval.data import digest, load_json
 
 # Use Hugging Face's default cache location for downloaded models.
 CACHE = None

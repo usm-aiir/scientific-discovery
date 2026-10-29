@@ -1,7 +1,7 @@
 #Loads and validates the resources needed for Stage 1 retrieval.
 from pathlib import Path
 
-from ..data import digest, load_corpus, load_json
+from table_retrieval.data import digest, load_corpus, load_json
 
 # Selects the device to use for Stage 1 retrieval.
 def resolve_device(requested):

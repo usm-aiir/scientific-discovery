@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from table_retrieval.stage2.pipeline import BGECellRetrievalPipeline
+from table_retrieval.live.stage2.pipeline import BGECellRetrievalPipeline
 
 from .model import BGECellSelector
 

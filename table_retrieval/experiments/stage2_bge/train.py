@@ -5,7 +5,7 @@ import random
 from pathlib import Path
 
 from table_retrieval.data import digest, load_json, write_json
-from table_retrieval.stage1.artifacts import resolve_device
+from table_retrieval.live.stage1.artifacts import resolve_device
 from .dataset import DATA, HERE, read_data, training_cells, training_pairs
 from .metrics import validation_ndcg
 

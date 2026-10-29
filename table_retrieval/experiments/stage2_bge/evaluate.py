@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 from table_retrieval.data import digest, load_json, write_json
-from table_retrieval.stage1.artifacts import resolve_device
-from table_retrieval.stage2.bge.model import BGECellSelector
+from table_retrieval.live.stage1.artifacts import resolve_device
+from table_retrieval.live.stage2.bge.model import BGECellSelector
 from .dataset import HERE, candidate_cells, cell_key, query_labels, read_data
 from .metrics import score_queries
 
