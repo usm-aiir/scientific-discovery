@@ -37,14 +37,18 @@ class EvidencePipeline:
             cell_selection='global_top_k',
         )
 # Runs Stage 1 table retrieval followed by global Stage 2 cell ranking.
-    def search(self, query, table_top_k, *, cell_top_k, query_id=None):
+    def search(self, query, table_top_k, *, cell_top_k, query_id=None, stage1_query=None):
         """Return Stage 1 tables and the global Stage 2 Top-k cells directly."""
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError('Enter a nonempty question.')
+        if stage1_query is not None and (not isinstance(stage1_query, str) or not stage1_query.strip()):
+            raise ValueError('stage1_query must be nonempty text when supplied.')
         started = perf_counter()
-        candidates = self.retrieval.search(query, table_top_k)
+        candidates = self.retrieval.search(query if stage1_query is None else stage1_query, table_top_k)
         tables_retrieved = perf_counter()
         evidence = self.cell_retrieval.rank(query, candidates, cell_top_k)
         finished = perf_counter()
-        return dict(
+        result = dict(
             schema_version=SCHEMA_VERSION,
             query_id=str(query_id) if query_id is not None else None,
             query=query.strip(),
@@ -60,3 +64,6 @@ class EvidencePipeline:
             cells=evidence['cells'],
             errors=evidence['errors'],
         )
+        if stage1_query is not None:
+            result['retrieval_queries'] = {'stage1': stage1_query, 'stage2': query}
+        return result

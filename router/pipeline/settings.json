@@ -1,0 +1,11 @@
+{
+  "router_checkpoint": "../model/modernbert",
+  "stage1_index": "../../table_retrieval/results/stage1_v2_20261028_144423/index",
+  "stage2_checkpoint": "../../table_retrieval/results/stage2_v2_train_20261028_172113/epoch_1",
+  "stage1_rerank": true,
+  "stage2_max_length": 512,
+  "table_top_k": 5,
+  "cell_top_k": 5,
+  "table_source_dir": null,
+  "device": "auto"
+}
