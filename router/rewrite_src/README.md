@@ -39,5 +39,4 @@ Each run creates a new `results/gemma_rewriting_val_*/` folder. Look at
 and `summary.json` for completion or errors. The folder also saves the questions
 and settings used.
 
-See the [main README](../README.md) for setup, and
-[AGENTS.md](../AGENTS.md) for the scoring rules and experiment details.
+See the [main README](../README.md) for setup.

@@ -36,7 +36,6 @@ Use Train for training, Val for choosing settings, and Test for the final evalua
 
 The saved model used earlier training inputs. The current training command
 does not repeat its paired-question training method. Use `data/frozen/` when
-comparing earlier scores. See the [data notes](../data/README.md) for details.
+comparing earlier scores.
 
-See the [main README](../README.md) for setup, and
-[AGENTS.md](../AGENTS.md) for development rules and experiment details.
+See the [main README](../README.md) for setup.

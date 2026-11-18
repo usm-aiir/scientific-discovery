@@ -41,6 +41,4 @@ python -m pipeline.check_integration
 This needs the saved models and table index. It saves a new folder in `results/`.
 It checks that the connected search matches direct table search.
 
-See the [router guide](router_src/README.md) for training and evaluation,
-the [data notes](data/README.md) for question splits, and
-the [developer notes](AGENTS.md) for adding search systems.
+See the [router guide](router_src/README.md) for training and evaluation.
