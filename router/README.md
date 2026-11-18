@@ -1,62 +1,46 @@
-# ModernBERT modality classifier
+# Scientific question router
 
-Train and evaluate ModernBERT to classify scientific questions by the modalities
-needed to answer them: tables, figures, text, or a combination. Only the question
-text enters the model.
+ModernBERT chooses whether a question needs tables, figures, text, or a mix.
+Table search is connected. Figure and text search still need to be connected.
+Gemma can rewrite a question to help find tables; the original question is
+still used to choose the route and find cells.
 
-## Organization
+The main folders are:
 
-- **[modernbert_classifier/](modernbert_classifier/)** — Data loading, training,
-  checkpoint loading, and evaluation helpers.
-- **[evaluate.py](evaluate.py)** — Evaluate a trained checkpoint.
+- `router_src/`: train and use the router.
+- `rewrite_src/`: rewrite questions with Gemma and compare the results.
+- `pipeline/`: run the searches together and check that they work together.
+- `data/`, `model/`, `results/`: questions, saved models, and run outputs.
 
-## Setup
+## Get the model and data
 
-Run commands from `router/`, using the existing environment and the parent
-repository's `requirements.txt`:
-
-```bash
-source ../.venv-annotation/bin/activate
-```
-
-## Train
-
-Check the training and validation data, then train:
+In your Python environment, run these once from `router/`:
 
 ```bash
-python -m modernbert_classifier.train --check-data
-python -m modernbert_classifier.train
+python -m pip install -r ../requirements.txt
+python -m pip install -e ..
+python -m pipeline.assets download
 ```
 
-Defaults: three epochs, learning rate `2e-5`, batch size 8, maximum query length
-256, and seed 42. Training uses `data/Train.json`, evaluates `data/Val.json`
-after each epoch, and automatically saves the checkpoint with the highest
-validation routing accuracy. Ties keep the earliest epoch.
+This gets the exact saved router and data from release `router-v1` and checks
+the files. Gemma has its own download command in the [Gemma guide](rewrite_src/README.md).
+Full table search also needs the separate table index, cell-search model and corpus.
 
-Each run creates new checkpoint and result directories under `model/` and
-`results/`, preserving previous runs.
+`pipeline/settings.json` and `rewrite_src/settings.json` contain model paths,
+device choices, and search options.
+Paths inside them are relative to the settings file.
 
-## Evaluate
+## Check table search
+
+Check the connection to real table search using three validation questions:
 
 ```bash
-python evaluate.py
+python -m pipeline.check_integration
 ```
 
-Evaluation uses `data/Val.json` and, by default, the newest completed checkpoint
-in `model/`, falling back to `model/modernbert/`. Use `--checkpoint PATH` to
-choose a checkpoint. Predictions, metrics, and a report are saved in a new
-`results/val_*/` directory. Evaluation reports:
+This needs the saved models and table index. It saves a new folder in `results/`.
+It checks that the connected search matches direct table search.
 
-- **Routing accuracy:** the selected route matches a known acceptable route.
-- **Sufficient-set coverage:** the selected route contains a known sufficient set.
-- **Mean selected modalities:** the average number of modalities selected.
-
-These measure agreement with reviewed labels, not retrieval or answer quality.
-Test review is unfinished; keep Test held out and use Val for development.
-
-## Data
-
-Use the individual `Train.json` and `Val.json` splits for training and evaluation.
-Each record contains `router_id`, `query`, `acceptable_sets`, and `source_split`.
-`[["table"], ["text"]]` means either modality is sufficient;
-`[["table", "text"]]` means both are required. Unlisted routes are unverified.
+See the [router guide](router_src/README.md) for training and evaluation,
+the [data notes](data/README.md) for question splits, and
+the [developer notes](AGENTS.md) for adding search systems.
