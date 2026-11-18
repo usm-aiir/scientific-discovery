@@ -1,4 +1,4 @@
-"""Evaluate a saved ModernBERT classifier on a reviewed split."""
+"""Check how well a saved router chooses tables, figures and text."""
 
 import argparse
 import json
@@ -7,11 +7,13 @@ from pathlib import Path
 
 import torch
 
-from modernbert_classifier import common
-from modernbert_classifier.data import check_test_coverage, evaluation_coverage, file_hash, load_records
+from . import common
+from .data import (check_test_coverage, evaluation_coverage, file_hash,
+                   load_records, write_json)
 
 
 def main(argv=None):
+    """Load the saved router, check its predictions and save the scores."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--split', choices=['Val', 'Test'], default='Val')
     parser.add_argument('--data-file', type=Path)
@@ -52,9 +54,9 @@ def main(argv=None):
                 'model_input_fields': ['query'], 'device': str(device), 'batch_size': args.batch_size,
                 'max_length': model.config.router_max_length, 'review_coverage': coverage,
                 'partial_test_explicitly_allowed': args.allow_partial_test if args.split == 'Test' else False}
-    common.write_json(output / 'metrics.json', metrics)
-    common.write_json(output / 'predictions.json', predictions)
-    common.write_json(output / 'settings.json', settings)
+    write_json(output / 'metrics.json', metrics)
+    write_json(output / 'predictions.json', predictions)
+    write_json(output / 'settings.json', settings)
     n = metrics['count']
     hits = sum(p['known_acceptable_route_match'] for p in predictions)
     report = ('# ModernBERT routing evaluation\n\n'

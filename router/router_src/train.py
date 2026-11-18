@@ -1,4 +1,4 @@
-"""Train ModernBERT to route questions to sufficient modalities."""
+"""Train ModernBERT to choose the information types needed for a question."""
 
 import argparse
 import importlib.metadata
@@ -13,17 +13,20 @@ from torch.utils.data import DataLoader
 
 from . import common
 from .data import (ROUTES, ROUTING_TASK, collate_reviewed, describe_records,
-                   file_hash, load_records)
+                   file_hash, load_records, write_json)
 
 MODEL_NAME = 'answerdotai/ModernBERT-base'
 REVISION = '8949b909ec900327062f0ebf497f51aef5e6f0c8'
 
 
 def main(argv=None):
+    """Check the data, train the router and save the chosen model."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--train-file', type=Path)
     parser.add_argument('--val-file', type=Path, help='Validation data for checkpoint selection; default: data/Val.json. Never Test.')
     parser.add_argument('--check-data', action='store_true', help='Validate inputs without loading weights or training.')
+    parser.add_argument('--checkpoint-selection', choices=['validation', 'final'], default='validation',
+                        help='Save the best Val epoch (default), or the fixed final epoch for controlled experiments.')
     parser.add_argument('--model', default=MODEL_NAME)
     parser.add_argument('--revision', default=REVISION)
     parser.add_argument('--epochs', type=int, default=3)
@@ -56,7 +59,9 @@ def main(argv=None):
     check = {'task': ROUTING_TASK, 'train': describe_records(training),
              'validation': describe_records(validation),
              'data_files': {k: str(v) for k, v in files.items()}, 'data_sha256': hashes,
-             'selection': 'highest Val routing accuracy; earliest epoch on ties',
+             'selection': ('highest Val routing accuracy; earliest epoch on ties'
+                           if args.checkpoint_selection == 'validation'
+                           else 'fixed final epoch; Val is diagnostic only'),
              'model_input_fields': ['query']}
     print(json.dumps(check, indent=2), flush=True)
     if args.check_data:
@@ -81,9 +86,10 @@ def main(argv=None):
     settings = {**check, 'model': args.model, 'revision': args.revision, 'epochs': args.epochs,
                 'batch_size': args.batch_size, 'accumulation_steps': args.accumulation_steps,
                 'learning_rate': args.learning_rate, 'max_length': args.max_length, 'seed': args.seed,
+                'checkpoint_selection': args.checkpoint_selection,
                 'device': str(device), 'route_order': ROUTES, 'checkpoint': str(checkpoint),
                 'versions': {name: importlib.metadata.version(name) for name in ('torch', 'transformers')}}
-    common.write_json(results / 'settings.json', settings)
+    write_json(results / 'settings.json', settings)
 
     history, best_score = [], -1.0
     selection = None
@@ -95,22 +101,28 @@ def main(argv=None):
         entry = {'epoch': epoch, 'train_loss': loss, 'validation': metrics}
         history.append(entry)
         score = metrics['known_acceptable_route_match_rate']
-        if score > best_score:
+        if args.checkpoint_selection == 'validation':
+            save_checkpoint = score > best_score
+        else:
+            save_checkpoint = epoch == args.epochs
+        if save_checkpoint:
             best_score = score
             model.save_pretrained(checkpoint)
             tokenizer.save_pretrained(checkpoint)
-            selection = {'policy': 'validation', 'validation_used': True,
-                         'selected_epoch': epoch, 'task': ROUTING_TASK,
-                         'selection_metric': 'known_acceptable_route_match_rate', 'selection_score': score}
-            common.write_json(results / 'val_metrics.json', metrics)
-            common.write_json(results / 'val_predictions.json', outputs)
-            common.write_json(checkpoint / 'training.json', {'settings': settings, 'selection': selection, 'history': history, 'status': 'running'})
-        common.write_json(results / 'history.json', history)
-        common.write_json(results / 'selection.json', selection)
-        common.write_json(results / 'progress.json', {'completed_epochs': epoch, 'planned_epochs': args.epochs,
+            selection = {'policy': 'fixed_epochs', 'validation_used': False,
+                         'selected_epoch': epoch, 'task': ROUTING_TASK}
+            if args.checkpoint_selection == 'validation':
+                selection.update(policy='validation', validation_used=True,
+                                 selection_metric='known_acceptable_route_match_rate', selection_score=score)
+            write_json(results / 'val_metrics.json', metrics)
+            write_json(results / 'val_predictions.json', outputs)
+            write_json(checkpoint / 'training.json', {'settings': settings, 'selection': selection, 'history': history, 'status': 'running'})
+        write_json(results / 'history.json', history)
+        write_json(results / 'selection.json', selection)
+        write_json(results / 'progress.json', {'completed_epochs': epoch, 'planned_epochs': args.epochs,
                           'status': 'complete' if epoch == args.epochs else 'running'})
         print(json.dumps(entry), flush=True)
-    common.write_json(checkpoint / 'training.json', {'settings': settings, 'selection': selection,
+    write_json(checkpoint / 'training.json', {'settings': settings, 'selection': selection,
                       'history': history, 'status': 'complete'})
     print('Checkpoint: ' + str(checkpoint))
     print('Results: ' + str(results))

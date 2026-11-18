@@ -1,4 +1,4 @@
-"""Load reviewed data and define routing labels, targets and metrics."""
+"""Read routing data and describe the table, figure and text route choices."""
 
 import hashlib
 import json
@@ -14,11 +14,23 @@ CLEAN_FIELDS = {'router_id', 'query', 'acceptable_sets', 'source_split'}
 
 
 def file_hash(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    """Make a fingerprint we can use to check whether a file has changed."""
+    digest = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_json(path, value):
+    """Save the given information as a JSON file."""
+    Path(path).write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+    )
 
 
 def load_records(path, split):
-    """Validate one split without changing its records or order."""
+    """Read a training or evaluation file and check that its examples look right."""
     if split not in ('Train', 'Val', 'Test'):
         raise ValueError('Expected Train, Val or Test')
     path = Path(path)
@@ -42,6 +54,7 @@ def load_records(path, split):
 
 
 def configure_classifier(config, max_length):
+    """Give the model our route names, route order and question-length limit."""
     config.num_labels = len(ROUTES)
     config.id2label = dict(enumerate(ROUTE_LABELS))
     config.label2id = {label: i for i, label in enumerate(ROUTE_LABELS)}
@@ -53,6 +66,7 @@ def configure_classifier(config, max_length):
 
 
 def checkpoint_task(config):
+    """Check that this model uses the routing setup we trained it with."""
     try:
         labels = {int(key): value for key, value in config.id2label.items()}
     except (AttributeError, TypeError, ValueError):
@@ -68,7 +82,7 @@ def checkpoint_task(config):
 
 
 def evaluation_coverage(path, split):
-    """Read review coverage only when the filename and file hash match."""
+    """Check the file matches the review record, then report how much was reviewed."""
     path = Path(path)
     manifest_path = path.parent / 'manifest.json'
     if not manifest_path.is_file():
@@ -86,7 +100,7 @@ def evaluation_coverage(path, split):
 
 
 def check_test_coverage(path, allow_partial=False):
-    """Check Test review coverage before loading questions or weights."""
+    """Check whether we are allowed to evaluate Test data based on its review status."""
     info, _ = evaluation_coverage(path, 'Test')
     if not allow_partial and (not info or not info.get('review_complete') or info.get('pending', 0)):
         raise ValueError('Test review is incomplete or unverified. Keep it held out; --allow-partial-test explicitly permits scoring the accepted partial snapshot.')
@@ -94,6 +108,7 @@ def check_test_coverage(path, allow_partial=False):
 
 
 def describe_records(rows):
+    """Count the examples and the route choices they contain."""
     counts = dict.fromkeys(ROUTE_LABELS, 0)
     for row in rows:
         for i in route_ids(row['acceptable_sets']):
@@ -105,6 +120,7 @@ def describe_records(rows):
 
 
 def route_ids(acceptable_sets):
+    """Turn the accepted route choices into the model's route numbers."""
     if not isinstance(acceptable_sets, list) or not acceptable_sets:
         raise ValueError('acceptable_sets must contain at least one sufficient route')
     ids = []
@@ -121,18 +137,21 @@ def route_ids(acceptable_sets):
 
 
 def target_mask(record):
+    """Mark which routing choices are accepted for this question."""
     accepted = set(route_ids(record['acceptable_sets']))
     return [index in accepted for index in range(len(ROUTES))]
 
 
 def collate_reviewed(batch):
-    # PyTorch's default collation cannot preserve variable-length route lists.
+    # Keep each question's accepted route choices together when making a batch.
+    """Put examples into a batch while keeping all their accepted route choices."""
     import torch
     return {'query': [r['query'] for r in batch],
             'acceptable_mask': torch.tensor([target_mask(r) for r in batch], dtype=torch.bool)}
 
 
 def routing_metrics(records, predictions):
+    """Score the router's choices against the accepted routes."""
     if not records or len(records) != len(predictions):
         raise ValueError('Metrics need equal nonempty target and prediction sequences')
     exact, covered, calls, excess = 0, 0, 0, 0

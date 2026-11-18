@@ -1,4 +1,4 @@
-"""Load, train and evaluate the ModernBERT classifier."""
+"""Shared code for loading, training and checking the router."""
 
 import json
 from pathlib import Path
@@ -16,16 +16,13 @@ MODEL_DIR = ROOT / 'model'
 RESULTS_DIR = ROOT / 'results'
 
 
-def write_json(path, value):
-    Path(path).write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-
-
 def checkpoint_file_task(checkpoint):
+    """Check that the saved model was built for our routing task."""
     return checkpoint_task(SimpleNamespace(**json.loads((Path(checkpoint) / 'config.json').read_text())))
 
 
 def latest_checkpoint():
-    """Find the newest completed checkpoint without relying on results folders."""
+    """Find the latest finished router model that has all its files."""
     candidates = [p.parent for p in sorted(MODEL_DIR.glob('run_*/config.json'), reverse=True)]
     candidates.append(MODEL_DIR / 'modernbert')
     for candidate in candidates:
@@ -42,15 +39,15 @@ def latest_checkpoint():
             return candidate
         except (OSError, ValueError, TypeError, AttributeError):
             continue
-    raise FileNotFoundError('No completed ModernBERT checkpoint. Run python -m modernbert_classifier.train first.')
+    raise FileNotFoundError('No completed ModernBERT checkpoint. Run python -m router_src.train first.')
 
 
 def create_classifier(model_name, revision, max_length):
-    """Load a pretrained encoder with a seven-route classification head."""
+    """Set up a pretrained ModernBERT model to learn our routing choices."""
     from transformers import AutoTokenizer, ModernBertConfig, ModernBertForSequenceClassification
 
     config = ModernBertConfig.from_pretrained(model_name, revision=revision)
-    # Resolve main once, then use the same commit for tokenizer and weights.
+    # Use the same model version for the model and its text processor.
     revision = getattr(config, "_commit_hash", None) or revision
     tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision)
     tokenizer.padding_side = "right"
@@ -63,7 +60,7 @@ def create_classifier(model_name, revision, max_length):
         model_name, revision=revision, config=config, dtype=torch.float32,
         attn_implementation="sdpa", output_loading_info=True,
     )
-    # The classifier may be new. Every encoder weight must come from pretraining.
+    # The routing part can be new; the rest must come from the pretrained model.
     missing_encoder = [key for key in loading["missing_keys"] if key.startswith("model.")]
     if missing_encoder or loading.get("mismatched_keys") or loading.get("error_msgs"):
         raise ValueError(f"Pretrained encoder weights did not load correctly: {loading}")
@@ -71,7 +68,7 @@ def create_classifier(model_name, revision, max_length):
 
 
 def load_checkpoint(checkpoint, device):
-    """Load a saved classifier and verify its checkpoint contract."""
+    """Load a saved router and check that it has the right labels and settings."""
     from transformers import AutoTokenizer, ModernBertForSequenceClassification
 
     model, loading = ModernBertForSequenceClassification.from_pretrained(
@@ -85,7 +82,7 @@ def load_checkpoint(checkpoint, device):
 
 
 def encode_queries(tokenizer, queries, max_length, device):
-    """Tokenize question text without including metadata."""
+    """Turn the questions into the inputs ModernBERT can read."""
     tokens = tokenizer(
         queries, padding=True, truncation=True, max_length=max_length,
         return_tensors="pt", return_token_type_ids=False,
@@ -94,20 +91,20 @@ def encode_queries(tokenizer, queries, max_length, device):
 
 
 def mixed_precision(device):
-    """Use BF16 on supported GPUs while keeping weights in FP32."""
+    """Use 16-bit calculations on GPUs that support them."""
     enabled = device.type == "cuda" and torch.cuda.is_bf16_supported()
     return torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=enabled)
 
 
 def acceptable_route_loss(logits, mask, reduction='mean'):
-    """Minimize the negative log probability of choosing any acceptable route."""
+    """Work out the training loss, allowing any accepted route to count as correct."""
     if (logits.ndim != 2 or logits.shape[1] != len(ROUTES)
             or mask.shape != logits.shape or mask.dtype != torch.bool
             or not mask.any(dim=1).all()):
         raise ValueError('Expected [batch,7] logits and a Boolean mask with a target for every example')
     if not torch.isfinite(logits).all():
         raise ValueError('Route logits must be finite')
-    # Sum probability across alternatives; unlisted routes are not proven negatives.
+    # Add the probabilities of all accepted routes for this question.
     losses = torch.logsumexp(logits, dim=-1) - torch.logsumexp(logits.masked_fill(~mask, -torch.inf), dim=-1)
     if reduction == 'none':
         return losses
@@ -119,7 +116,7 @@ def acceptable_route_loss(logits, mask, reduction='mean'):
 
 
 def train_epoch(model, tokenizer, loader, optimizer, scheduler, accumulation_steps, device):
-    """Train one epoch, averaging gradients over each accumulation window."""
+    """Train through the full dataset once and report the training loss."""
     model.train()
     checkpoint_task(model.config)
     optimizer.zero_grad(set_to_none=True)
@@ -130,8 +127,8 @@ def train_epoch(model, tokenizer, loader, optimizer, scheduler, accumulation_ste
         labels = batch['acceptable_mask'].to(device)
         with mixed_precision(device):
             logits = model(**inputs).logits.float()
-            # Summing here lets us average by the actual number of examples in
-            # each accumulation window, including the final incomplete window.
+            # Count the examples before each model update so the last smaller group
+            # is handled properly too.
             loss = acceptable_route_loss(logits, labels, reduction='sum')
         if not torch.isfinite(loss):
             raise RuntimeError("Training loss is not finite; stop and inspect the run.")
@@ -154,6 +151,7 @@ def train_epoch(model, tokenizer, loader, optimizer, scheduler, accumulation_ste
 
 @torch.inference_mode()
 def evaluate(model, tokenizer, records, batch_size, device):
+    """Compare the router's choices with the accepted routes and return the scores."""
     model.eval()
     checkpoint_task(model.config)
     predictions, outputs = [], []
