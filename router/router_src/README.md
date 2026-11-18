@@ -34,8 +34,4 @@ The scores tell you:
 These scores check routing choices. They do not measure search or answer quality.
 Use Train for training, Val for choosing settings, and Test for the final evaluation.
 
-The saved model used earlier training inputs. The current training command
-does not repeat its paired-question training method. Use `data/frozen/` when
-comparing earlier scores.
-
 See the [main README](../README.md) for setup.
