@@ -2,9 +2,10 @@
 /model/
 /results/
 /data_generation/
-/tests/
-/AGENTS.md
 __pycache__/
 *.py[cod]
 .pytest_cache/
 /review/
+/references/
+/tests/
+AGENTS.md

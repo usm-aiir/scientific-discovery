@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "repository": "usm-aiir/scientific-discovery",
+  "tag": "router-v1",
+  "assets": {
+    "model": {
+      "directory": "model/modernbert",
+      "filename": "modernbert-router.tar.gz",
+      "size_bytes": 556546160,
+      "sha256": "f7f4490aa8aaf54a38a9336735b4f502ba90bc60e009268cf3c788275e56e250",
+      "files": {
+        "model/modernbert/README.md": {
+          "size_bytes": 944,
+          "sha256": "4190adc594bfa16ef0c372070ee8f4ddd8210dff163142925dd49b8fa4a492fa"
+        },
+        "model/modernbert/config.json": {
+          "size_bytes": 2750,
+          "sha256": "6638fce81590893b191f98bd93c099ce39bf4251b4467a5cb85182679f872bcb"
+        },
+        "model/modernbert/deployment.json": {
+          "size_bytes": 4709,
+          "sha256": "5c246a82428506d77bff2443184ad6560bef49437352c1f124ca61f08ddffa2e"
+        },
+        "model/modernbert/model.safetensors": {
+          "size_bytes": 598455164,
+          "sha256": "b3432d5c11182b360ed08f53afa9273a2fc3d92cd0e33c7d8379295571212123"
+        },
+        "model/modernbert/tokenizer.json": {
+          "size_bytes": 3583485,
+          "sha256": "a4285a69e0471620769dce979c70a6994eb7ff1554da8fb4bdbc7ad3eb5ad666"
+        },
+        "model/modernbert/tokenizer_config.json": {
+          "size_bytes": 379,
+          "sha256": "239885aa9c2ae7d31caf67e9a284f8741cb87846847a4ef74627efa3b6f33eb3"
+        },
+        "model/modernbert/training.json": {
+          "size_bytes": 7149,
+          "sha256": "11a5f4e2475f96967c5a578781c69fdb41c76efbe007ead028a24564b223ad90"
+        }
+      }
+    },
+    "data": {
+      "directory": "data",
+      "filename": "router-data.tar.gz",
+      "size_bytes": 7331948,
+      "sha256": "a0a6d58d8c115baabd26d689039b3c6838789c00d92a2731689045b5af092504",
+      "files": {
+        "data/README.md": {
+          "size_bytes": 3809,
+          "sha256": "fea16fe19a7f7c1db4c358db8dccead8bf463b7fa9b4c979fc1727628a3a31dc"
+        },
+        "data/Test.json": {
+          "size_bytes": 171986,
+          "sha256": "35345dce3eeaddbb2c5939ebcfab17064ae76cbcbf7bf8aa30f547efd0c55db6"
+        },
+        "data/Train.json": {
+          "size_bytes": 604690,
+          "sha256": "553306402bf9daf3ba402a3db0782f2013163d4cffcae869fa8c7e55aca9b3b5"
+        },
+        "data/Val.json": {
+          "size_bytes": 241480,
+          "sha256": "7dec14869ab2e27359774ddb628c898634ffba7c3f918f32181cb6eb87caafa4"
+        },
+        "data/cleanup.json": {
+          "size_bytes": 2102,
+          "sha256": "e03b42dfd9dbf54a148e9ecc3622c165493586de20f6c57b6c180b00506d058a"
+        },
+        "data/deferred.json": {
+          "size_bytes": 205514,
+          "sha256": "20d637e253bd4ad50427a64b84a63d99759695e280a6879fd0cd7c928f391103"
+        },
+        "data/frozen/Joint_dev43.json": {
+          "size_bytes": 17539,
+          "sha256": "f6829beee59300874c0317e53803b0e438b825d200cd49839759e3678d02f2e5"
+        },
+        "data/frozen/Train_checkpoint.json": {
+          "size_bytes": 561681,
+          "sha256": "d1bec3b7eca03ce3565c36c848f375e6531e261ad5b577e06eab1ef26ea62f5f"
+        },
+        "data/frozen/Val_original.json": {
+          "size_bytes": 226011,
+          "sha256": "816a14e23b0e6f918086025a26bba3ba41d1cd265a48efd3ee3b6419f1946ec7"
+        },
+        "data/frozen/manifest.json": {
+          "size_bytes": 1651,
+          "sha256": "9cf639b4b722649108fa809176e47a691f7723b1beded34d552159a01bf77481"
+        },
+        "data/frozen/pairs_checkpoint.json": {
+          "size_bytes": 42341,
+          "sha256": "5545405890296a5d9a388d0f01f6c9b700c0ed9eec2e59689ad019ef0204169e"
+        },
+        "data/manifest.json": {
+          "size_bytes": 64815,
+          "sha256": "cca4771267955a256d75fdcfb35f2f63581c4cb3981454a0c16ed95d1e7b2d2c"
+        },
+        "data/metadata.json": {
+          "size_bytes": 48402746,
+          "sha256": "3c9f6f2c5283f69c32dc071f2f0601438f3c0a0392ae757a24f8b6fa49da0657"
+        },
+        "data/pairs.json": {
+          "size_bytes": 37725,
+          "sha256": "0a91772a8b44ced6388693929bea0b9f82d4b0e362b7c067d509122db6da83b0"
+        },
+        "data/router_dataset.json": {
+          "size_bytes": 1018150,
+          "sha256": "9b2735ccfc67b6725af5224e3d3fb15638e69ec1af809e99d1234396f86f7041"
+        }
+      }
+    }
+  }
+}
