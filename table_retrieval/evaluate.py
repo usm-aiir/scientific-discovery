@@ -1,13 +1,28 @@
 # Scores a finished run_batch folder against the validation or test labels.
 import argparse
 import json
+import math
 from pathlib import Path
 
 from table_retrieval.data import DEFAULT_DATA_DIR, RESULTS_DIR, digest, load_corpus, load_json, table_split_paths, write_json
 from table_retrieval.experiments.stage2_bge.dataset import load_split
-from table_retrieval.experiments.stage2_bge.metrics import score_queries, score_tables
+from table_retrieval.experiments.stage2_bge.metrics import score_queries
 
 CUTOFF = 5
+
+
+# Averages table precision, recall and binary nDCG per question, as in Stage 1 evaluation.
+def score_tables(records):
+    precision = recall = ndcg = 0.0
+    for record in records:
+        gold = {table for table, _ in record['gold']}
+        tables = record['candidate_table_ids']
+        precision += len(set(tables) & gold) / CUTOFF
+        recall += len(set(tables) & gold) / len(gold)
+        dcg = sum(1 / math.log2(rank + 1) for rank, table in enumerate(tables, 1) if table in gold)
+        ndcg += dcg / sum(1 / math.log2(rank + 1) for rank in range(1, min(CUTOFF, len(gold)) + 1))
+    count = len(records)
+    return {'precision@5': precision / count, 'recall@5': recall / count, 'ndcg@5': ndcg / count}
 
 
 # Finds the newest completed run_batch folder.
