@@ -41,6 +41,24 @@ The index goes to `results/stage1/index/`. Rankings and metrics go to
 Each evaluation saves `fusion.run` in its split's folder by default, where
 Stage 2 reads it automatically.
 
+## Rerank
+
+The released system reorders the first 10 fusion tables with the
+`BAAI/bge-reranker-v2-m3` reranker and keeps the top 5. After evaluating a
+split, rerank its saved rankings:
+
+```bash
+D=/mnt/netstore1_home/behrooz.mansouri/SciDis/tableGen/table_query_output_v2
+python -m table_retrieval.experiments.stage1.rerank \
+  --rankings results/stage1/val --queries $D/Val.json \
+  --qrels $D/Val_table_qrels.tsv --output results/stage1/val_reranked
+```
+
+For test, use `Test.json`, `Test_table_qrels.INSTRUCTOR_ONLY.tsv` and
+`results/stage1/test_reranked`. The output folder contains `reranked.run` and a
+`metrics.json` comparing the top 5 tables before and after reranking. The
+rankings must be saved with `--k 10` or more, which is the default.
+
 ## Options
 
 | Option | Purpose |

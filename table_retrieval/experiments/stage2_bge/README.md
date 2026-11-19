@@ -20,6 +20,18 @@ First run [Stage 1](../stage1/README.md) to produce the candidate table rankings
 Use rankings generated from the same dataset, and keep the Stage 1 output folder
 intact. Stage 2 reads these saved rankings.
 
+The commands below read `fusion.run` by default. The released model was trained
+and evaluated on the reranked rankings from the
+[Stage 1 reranking step](../stage1/README.md#rerank). To reproduce it, pass
+those rankings instead:
+
+```bash
+python -m table_retrieval.experiments.stage2_bge.train \
+  --val-stage1-run results/stage1/val_reranked/reranked.run
+python -m table_retrieval.experiments.stage2_bge.evaluate --checkpoint results/stage2_bge/train \
+  --stage1-run results/stage1/val_reranked/reranked.run
+```
+
 ## Train
 
 For individual Python commands, activate the environment from the

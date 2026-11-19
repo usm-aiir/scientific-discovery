@@ -20,7 +20,9 @@ bash table_retrieval/experiments/scripts/setup.sh
 
 This creates `table_retrieval/experiments/.venv`, installs the pinned dependencies
 from the root `requirements.txt`, installs the retrieval package, and checks the
-dependencies. Both stages use this environment automatically.
+dependencies. The run scripts below require this environment. The individual
+Python commands in the stage guides also work in the `table-retrieval`
+environment from the root `setup.sh`.
 
 To select another Python executable, set `PYTHON` when running setup:
 
@@ -48,6 +50,10 @@ bash table_retrieval/experiments/scripts/run_stage2.sh
 - **Stage 2:** train BGE using training data and validation-based checkpoint
   selection, then evaluate pretrained and selected models on validation and test.
   It requires the completed Stage 1 rankings.
+
+The scripts do not rerank tables. The released model used reranked Stage 1
+rankings; see [Stage 1 reranking](stage1/README.md#rerank) and the
+[Stage 2 guide](stage2_bge/README.md#data) to reproduce it.
 
 ## Results
 

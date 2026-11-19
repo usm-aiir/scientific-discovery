@@ -6,20 +6,17 @@ reranks the table candidates before selecting five tables and five cells.
 
 ## Get the saved models
 
-Run from the repository root in your Python environment:
+Run from the repository root. Create the environment once, then download:
 
 ```bash
-python -m pip install -r requirements.txt
-python -m pip install -e .
+bash setup.sh
+conda activate table-retrieval
 python -m table_retrieval.assets download
 ```
 
 This downloads release `table-retrieval-v1` and checks the files. The standard
 BGE search model and reranker download automatically on first use.
 The table corpus stays in Behrooz's directory and must match the saved index.
-
-For a private repository, download the release attachments while signed in,
-then add `--from-dir FOLDER` to the download command.
 
 ## Run a batch
 
