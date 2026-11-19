@@ -1,17 +1,40 @@
 # Table retrieval
 
-Retrieve evidence from scientific tables in two stages: find relevant tables,
-then rank the cells within those tables.
+Find relevant tables with BGE + BM25 fusion, then select evidence cells with
+the saved cell model. The downloaded setup uses the selected checkpoint and
+reranks the table candidates before selecting five tables and five cells.
 
-## Organization
+## Get the saved models
 
-- **[experiments/](experiments/README.md)** — Setup, indexing, training, and
-  evaluation for Stage 1 (tables) and Stage 2 (cells). **Start here to run the
-  experiments.**
-- **[live/](live/)** — The shared Stage 1 and Stage 2 retrieval implementations
-  for use in the live system.
+Run from the repository root in your Python environment:
 
-The live code is intended for the future multimodal system, where a router will
-combine table, figure, and text retrieval once the other retrieval systems are
-ready. The experiments use these same implementations to keep evaluation and
-live retrieval aligned.
+```bash
+python -m pip install -r requirements.txt
+python -m pip install -e .
+python -m table_retrieval.assets download
+```
+
+This downloads release `table-retrieval-v1` and checks the files. The standard
+BGE search model and reranker download automatically on first use.
+The table corpus stays in Behrooz's directory and must match the saved index.
+
+For a private repository, download the release attachments while signed in,
+then add `--from-dir FOLDER` to the download command.
+
+## Run a batch
+
+The question file is a JSON list with `query_id` and `query` for each question.
+Run the test questions from Behrooz's directory:
+
+```bash
+python -m table_retrieval.run_batch --input /mnt/netstore1_home/behrooz.mansouri/SciDis/tableGen/table_query_output_v2/Test.json
+```
+
+Each run saves a new folder under `results/`. `predictions.jsonl` contains the
+retrieved tables and cells with their source IDs. `summary.json` records errors
+and timings. This command only retrieves evidence; it does not read answer labels.
+
+`table_retrieval/settings.json` contains the saved model paths and search options.
+Add `--device cuda:0` or `--device cpu` to choose a device.
+
+See [experiments/](experiments/README.md) for training and evaluation instructions.
