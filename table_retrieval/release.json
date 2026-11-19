@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "repository": "usm-aiir/scientific-discovery",
+  "tag": "table-retrieval-v1",
+  "provenance": {
+    "source_index": "/mnt/netstore1_home/aubin.mugisha/scientific-discovery/router/../table_retrieval/results/stage1_v2_20261028_144423/index",
+    "source_checkpoint": "/mnt/netstore1_home/aubin.mugisha/scientific-discovery/router/../table_retrieval/results/stage2_v2_train_20261028_172113/epoch_1",
+    "corpus_sha256": "2e99b53d39b8a3f3825783cccf8d7dc546859b92381abf1dc7fe72c578988342",
+    "training_data_manifest_sha256": "f7c7e385bb4091f1f744dd2cffb9a27e72c1e46f990bf7a444f955cfad9f451f",
+    "selected_checkpoint": "epoch_1"
+  },
+  "assets": {
+    "index": {
+      "directory": "model/index",
+      "filename": "table-index.tar.gz",
+      "size_bytes": 733343704,
+      "sha256": "9be442c9fb972a4e12a94baceada8e2115d43e63f394db82597a05ed1588b104",
+      "files": {
+        "model/index/prepared.json": {
+          "size_bytes": 817,
+          "sha256": "29cb3a489ab9ffd37fe607445fc5a63421c123d63b59717ac21a353eab8929bd"
+        },
+        "model/index/index.json": {
+          "size_bytes": 161,
+          "sha256": "ac8f960adc643593ecb53a0378f21efdf44c0ee3de4d859f189bf334a38b30ab"
+        },
+        "model/index/table_ids.json": {
+          "size_bytes": 2427266,
+          "sha256": "4189b80eb708789a5e973ae8b9a12d7883fc0f272185af34c9cf1da24bfca5f8"
+        },
+        "model/index/table_inputs.json": {
+          "size_bytes": 625420825,
+          "sha256": "42b6b3d5c7def38c9abdcde9b8932777dacdd2552c0f04676acbb31cc969f1e1"
+        },
+        "model/index/truncated_tables.json": {
+          "size_bytes": 234539,
+          "sha256": "9f7feebb7c1dabe6e6d28f823d8cf935eeebdfd2685334a24b70c5ae7777ce34"
+        },
+        "model/index/embeddings.npy": {
+          "size_bytes": 549376128,
+          "sha256": "342fbe5dd5ceb8120956c3a08ebbd864275840d4ba426bfb76b9065f9deadcf6"
+        },
+        "model/index/bm25_full.npz": {
+          "size_bytes": 548304314,
+          "sha256": "c3e898eda6a365c972c7e46d6657db63fc6ec6fad0fb572aedce1167996cd3a3"
+        },
+        "model/index/bm25_matched.npz": {
+          "size_bytes": 511968062,
+          "sha256": "5b990b3ff58ffdcf5c3740ebd0e392b07323d8807887cfc6378f4eb6472be271"
+        },
+        "model/index/tokenizer/tokenizer.json": {
+          "size_bytes": 17098085,
+          "sha256": "5df1f55d60c9705a501ab9a75550728625740741fe4be308dac4806c16b7d51d"
+        },
+        "model/index/tokenizer/tokenizer_config.json": {
+          "size_bytes": 409,
+          "sha256": "9dc74fea52f2666f23d5f5d52d9e2983adc82c00c9a35dadc39346ecbc9aa53a"
+        }
+      },
+      "parts": [
+        {
+          "filename": "table-index.tar.gz",
+          "size_bytes": 733343704,
+          "sha256": "9be442c9fb972a4e12a94baceada8e2115d43e63f394db82597a05ed1588b104"
+        }
+      ]
+    },
+    "model": {
+      "directory": "model/cell_model",
+      "filename": "table-cell-model.tar.gz",
+      "size_bytes": 1806062073,
+      "sha256": "a14e758a00412c4a128640b562ffe99bee136f5e7db6a1146817a00f79c7a797",
+      "files": {
+        "model/cell_model/config.json": {
+          "size_bytes": 744,
+          "sha256": "aaef452c1de081b966feebaa6dc8da74e989a1c13c3e02b68c562cccb80382eb"
+        },
+        "model/cell_model/model.safetensors": {
+          "size_bytes": 2271064456,
+          "sha256": "773658b8b87da758ef1f90a0ca8357df9ae7b213923f484bd1e095d439c0e5a2"
+        },
+        "model/cell_model/tokenizer.json": {
+          "size_bytes": 17098338,
+          "sha256": "45885ab5cd9f8d0becc7075cecb177574d1cf4d086a891cac2b745f681d2b3c3"
+        },
+        "model/cell_model/tokenizer_config.json": {
+          "size_bytes": 409,
+          "sha256": "9dc74fea52f2666f23d5f5d52d9e2983adc82c00c9a35dadc39346ecbc9aa53a"
+        },
+        "model/cell_model/selection.json": {
+          "size_bytes": 1860,
+          "sha256": "d90660cd8c96c12ce0fb2c6fb202b5ec847c540ffb2c59efb0dbaada640be929"
+        }
+      },
+      "parts": [
+        {
+          "filename": "table-cell-model.tar.gz",
+          "size_bytes": 1806062073,
+          "sha256": "a14e758a00412c4a128640b562ffe99bee136f5e7db6a1146817a00f79c7a797"
+        }
+      ]
+    }
+  }
+}
