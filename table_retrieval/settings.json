@@ -1,0 +1,10 @@
+{
+  "stage1_index": "model/index",
+  "stage1_rerank": true,
+  "stage2_checkpoint": "model/cell_model",
+  "stage2_max_length": 512,
+  "device": "auto",
+  "table_top_k": 5,
+  "cell_top_k": 5,
+  "table_source_dir": null
+}

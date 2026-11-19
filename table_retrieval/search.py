@@ -7,9 +7,9 @@ from .data import load_json
 from .pipeline import EvidencePipeline
 from .live.stage2.bge.model import DEFAULT_MODEL
 
-# Local runtime settings; the example preserves the same defaults when none exists.
-DEFAULT_CONFIG = Path(__file__).with_name('config.json')
-# Required settings that must be present in config.json.
+# Released runtime settings, shared with run_batch.py.
+DEFAULT_CONFIG = Path(__file__).with_name('settings.json')
+# Required settings that must be present in the config file.
 _FIELDS = {
     'stage1_index', 'stage2_checkpoint', 'stage2_max_length', 'device',
     'table_top_k', 'cell_top_k', 'table_source_dir',
@@ -18,8 +18,6 @@ _OPTIONAL_FIELDS = {'stage1_rerank'}
 
 # Loads and validates runtime settings and resolves configured file paths.
 def load_config(path=DEFAULT_CONFIG):
-    if Path(path) == DEFAULT_CONFIG and not DEFAULT_CONFIG.exists():
-        path = DEFAULT_CONFIG.with_name('config.example.json')
     path = Path(path).expanduser().resolve()
     values = load_json(path)
     if (not isinstance(values, dict) or not _FIELDS <= set(values) or
@@ -62,7 +60,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('query', help='Natural-language question to search for')
     parser.add_argument('--config', type=Path, default=DEFAULT_CONFIG,
-                        help='Stable retrieval config (default: table_retrieval/config.json)')
+                        help='Retrieval settings (default: table_retrieval/settings.json)')
     args = parser.parse_args(argv)
     try:
         config = load_config(args.config)

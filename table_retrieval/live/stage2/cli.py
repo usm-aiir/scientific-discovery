@@ -16,7 +16,7 @@ def main(argv=None):
     parser.add_argument('--candidates', required=True, type=Path,
                         help='JSON list with table_id, table, and optional retrieval_rank/retrieval_score')
     parser.add_argument('--config', type=Path, default=DEFAULT_CONFIG,
-                        help='Stage 2 runtime config (default: table_retrieval/config.json)')
+                        help='Stage 2 runtime config (default: table_retrieval/settings.json)')
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args(argv)
     if not args.query.strip():
