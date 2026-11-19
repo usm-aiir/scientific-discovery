@@ -37,4 +37,16 @@ and timings. This command only retrieves evidence; it does not read answer label
 `table_retrieval/settings.json` contains the saved model paths and search options.
 Add `--device cuda:0` or `--device cpu` to choose a device.
 
-See [experiments/](experiments/README.md) for training and evaluation instructions.
+## Evaluate a batch
+
+After a run on `Val.json` or `Test.json`, score it against the labels:
+
+```bash
+python -m table_retrieval.evaluate
+```
+
+This scores the newest run folder; add a folder path to score another one.
+It saves `metrics.json` in that folder: precision, recall and nDCG at 5 for
+tables, and precision, recall, F1, nDCG and MRR at 5 for cells.
+
+See [experiments/](experiments/README.md) for training and the full experiment evaluation.
